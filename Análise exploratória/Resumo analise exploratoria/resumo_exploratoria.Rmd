@@ -1,0 +1,647 @@
+---
+title: "resumo_exploratoria"
+author: "Douglas Silva Alves"
+date: "2024-02-07"
+output: 
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    df_print: paged
+    toc: TRUE
+    toc_depth: 1
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Apresentação
+Este documento foi construído com o objetivo de sintetizar toda a análise exploratória dos dados, o que inclui a caracterização da amostra, assim como, a análise da distribuição das variáveis dependentes do estudo
+\
+\
+
+# Caracterização da amostra
+
+Vamos começar caracterizando a nossa amostra quanto aos dados coletados no screening da pesquisa
+
+
+## Carregar pacotes
+```{r message=FALSE, warning=FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(tidyr)
+library(writexl)
+library(kableExtra)
+library(knitr)
+```
+
+Agora, vamos carregar o banco de dados
+
+## Carregar o nosso banco de dados
+``` {r}
+dados <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado.xlsx')
+```
+
+## Agora, vamos adicionar mais uma variável no banco de dados, que é o IMC dos sujeitos
+``` {r}
+dados$IMC <- dados$Massa/dados$Estatura^2
+```
+
+
+## Vamos calcular as proporções das variáveis categóricas
+``` {r}
+proporcao_sexo <- prop.table(table(dados$Sexo))
+proporcao_trabalho <- prop.table(table(dados$Trabalho))
+proporcao_escolaridade <- prop.table(table(dados$Escolaridade))
+```
+
+
+Nesta etapa, observou-se que um dos participantes preencheu o nível de escolaridade incorretamente. Contatando este participante (ID 25), foi-se possível saber o seu real nível de escolaridade, portanto, vamos corrigir nos nossos dados
+
+
+## Corrigir escolaridade (ID 25)
+``` {r}
+dados$Escolaridade <- ifelse(dados$Escolaridade == "Ensino fundamental incompleto", "Ensino superior completo", dados$Escolaridade)
+```
+
+
+Agora vamos calcular média e intervalo de confiança dos dados contínuos e discretos
+
+
+## Vamos definir uma função para calcular o intervalo de confiança de 95% em torno da média dos dados 
+``` {r}
+calculo_ic <- function(dados){
+  media <- mean(dados)
+  z <- 1.96
+  dp <- sd(dados)
+  rn <- sqrt(length(dados))
+  
+  ic_upper <- media + z*(dp/rn)
+  ic_lower <- media - z*(dp/rn)
+  
+  intervalo_confianca <- c(ic_lower, ic_upper)
+  return(intervalo_confianca)
+}
+```
+
+
+## Agora vamos calcular média e intervalo de confiança de 95% para cada variável contínua ou discreta
+``` {r}
+media_idade <- mean(dados$Idade)
+ic_idade <- calculo_ic(dados$Idade)
+
+media_estatura <- mean(dados$Estatura)
+ic_estatura <- calculo_ic(dados$Estatura)
+
+media_massa <- mean(dados$Massa)
+ic_massa <- calculo_ic(dados$Massa)
+
+media_IMC <- mean(dados$IMC)
+ic_imc <- calculo_ic(dados$IMC)
+```
+
+
+## Vamos salvar esses intervalos de confiança em apenas uma variável, para podermos utilizá-la na nossa tabela
+``` {r}
+ics <- c(ic_idade, ic_estatura, ic_massa, ic_imc)
+```
+
+
+Nossa tabela possui 6 colunas contendo os intervalos inferior e superior de cada variável. Vamos concatenar esses intervalos em apenas uma variável
+
+
+## Criar um novo vetor contendo os intervalos de confiança arredondados
+``` {r}
+intervalos_confianca <- sapply(1:(length(ics)/2), function(i) {
+  lower <- ics[i*2-1]
+  upper <- ics[i*2]
+  paste(round(lower, 2), round(upper, 2), sep = "-")
+})
+```
+
+
+## Transformar o vetor em um dataframe
+``` {r}
+ics_dataframe <- data.frame(matrix(intervalos_confianca, ncol = length(intervalos_confianca), byrow = TRUE))
+```
+
+
+## Agora vamos expressar esses resultados em uma tabela
+``` {r}
+tabela_esperanca <- data.frame(
+  Variavel = c("Idade", "Sexo (M)", "Estatura", "Massa", "IMC", "Trabalho (S)", "Ensino médio completo", "Ensino superior completo", "Pós-graduação completa"),
+  Esperanca = c(media_idade, "-", media_estatura, media_massa, media_IMC, "-", "-", "-", "-"),
+  IC_95 = c(ics_dataframe$X1, "-", ics_dataframe$X2, ics_dataframe$X3, ics_dataframe$X4, "-", "-", "-", "-"),
+  Contagem = c("-", 29, "-", "-", "-", 55, 24, 23, 17),
+  Percentual = c("-", 45.3, "-", "-", "-", 85.9, 37.5, 35.9, 26.6)
+)
+```
+
+
+## Vamos renomear algumas colunas
+``` {r}
+colnames(tabela_esperanca)[colnames(tabela_esperanca) == "Variavel"] <- " "
+colnames(tabela_esperanca)[colnames(tabela_esperanca) == "IC_95"] <- "Intervalo de confiança de 95%"
+```
+
+
+## Agora vamos gerar a nossa tabela
+``` {r}
+tabela_esperanca
+```
+\
+\
+
+# Análise da distribuição das VDs
+
+Agora vamos fazer uma análise da distribuição dos nossos dados
+
+A partir daqui utilizaremos scripts em linguagem Python, portanto, precisamos de uma biblioteca nova
+
+``` {r}
+library("reticulate")
+```
+
+Para as análises a seguir, primeiro trabalharemos com os dados do IPAQ, após a devida remoção dos outliers pelo método de processamento e se baseando em valores de escore-z inferiores ou superiores à 3
+
+## Dados do IPAQ
+
+### Importação das bibliotecas necessárias
+``` {python}
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy import stats
+import statsmodels.api as sm
+from scipy.special import ndtri
+import matplotlib.lines as mlines
+import matplotlib.transforms as mtransforms
+import scipy
+from distfit import distfit
+import pylab as py
+from scipy.stats import gamma
+import math
+```
+
+
+
+### Importar banco de dados
+``` {python}
+dados_sem_outliers_z_score = pd.read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sexto processamento/banco_dados_reestruturado_sem_outliers.xlsx')
+```
+
+
+### Salvar os dados do IPAQ em uma variável, framentado em intensidades de AF, removendo os dados faltantes
+``` {python}
+leve_IPAQ = list(dados_sem_outliers_z_score['Caminhada_IPAQ_10'].values)
+leveipaq_p_quartil_dados = pd.DataFrame(dados_sem_outliers_z_score['Caminhada_IPAQ_10'].dropna())
+
+mod_IPAQ = list(dados_sem_outliers_z_score['Moderada_IPAQ_10'].values)
+modipaq_p_quartil_dados = pd.DataFrame(dados_sem_outliers_z_score['Moderada_IPAQ_10'].dropna())
+
+vig_IPAQ = list(dados_sem_outliers_z_score['Vigorosa_IPAQ_10'].values)
+vigipaq_p_quartil_dados = pd.DataFrame(dados_sem_outliers_z_score['Vigorosa_IPAQ_10'].dropna())
+
+```
+
+
+Agora vamos calcular percentis. Os percentis foram calculados, pois de início os qqplots seriam construídos manualmente
+
+### Calcular percentis
+``` {python}
+### Caminhada IPAQ
+df_leve_ipaq = leveipaq_p_quartil_dados.sort_values(by=['Caminhada_IPAQ_10'], ascending=True).reset_index()
+df_leve_ipaq['count'] = df_leve_ipaq.index + 1
+n_rows = df_leve_ipaq.shape[0]
+df_leve_ipaq['percentil_area'] = (df_leve_ipaq['count'])/n_rows
+df_leve_ipaq['percentil_teorico'] = ndtri(df_leve_ipaq['percentil_area'])
+df_leve_ipaq['percentil_atual'] = (df_leve_ipaq['Caminhada_IPAQ_10'] - df_leve_ipaq['Caminhada_IPAQ_10'].mean())/df_leve_ipaq['Caminhada_IPAQ_10'].std(ddof=0)
+
+
+### Moderada IPAQ 
+df_mod_ipaq = modipaq_p_quartil_dados.sort_values(by=['Moderada_IPAQ_10'], ascending=True).reset_index()
+df_mod_ipaq['count'] = df_mod_ipaq.index + 1
+n_rows = df_mod_ipaq.shape[0]
+df_mod_ipaq['percentil_area'] = (df_mod_ipaq['count'])/n_rows
+df_mod_ipaq['percentil_teorico'] = ndtri(df_mod_ipaq['percentil_area'])
+df_mod_ipaq['percentil_atual'] = (df_mod_ipaq['Moderada_IPAQ_10'] - df_mod_ipaq['Moderada_IPAQ_10'].mean())/df_mod_ipaq['Moderada_IPAQ_10'].std(ddof=0)
+
+
+### Vigorosa IPAP
+df_vig_ipaq = vigipaq_p_quartil_dados.sort_values(by=['Vigorosa_IPAQ_10'], ascending=True).reset_index()
+df_vig_ipaq['count'] = df_vig_ipaq.index + 1
+n_rows = df_vig_ipaq.shape[0]
+df_vig_ipaq['percentil_area'] = (df_vig_ipaq['count'])/n_rows
+df_vig_ipaq['percentil_teorico'] = ndtri(df_vig_ipaq['percentil_area'])
+df_vig_ipaq['percentil_atual'] = (df_vig_ipaq['Vigorosa_IPAQ_10'] - df_vig_ipaq['Vigorosa_IPAQ_10'].mean())/df_vig_ipaq['Vigorosa_IPAQ_10'].std(ddof=0)
+
+```
+
+
+Agora vamos testar algumas distribuições de probabilidade por bruteforce, tentando identificar quais possivelmente aderem melhor aos nossos dados, com o objetivo de ajustar essas distribuições nos modelos mistos que construiremos
+
+### Testar distribuições de probabilidade por bruteforce
+
+#### Caminhada IPAQ 
+```{python echo = T, results = 'hide'}
+dist = distfit(alpha=0.05, smooth=10)
+
+a = np.array(leveipaq_p_quartil_dados)
+
+caminhada_fit = dist.fit_transform(a)
+best_distr = dist.model
+```
+
+``` {python}
+dist.summary
+dist.plot_summary()
+```
+
+Com base na análise acima, temos como distribuições candidatas para o nosso modelo misto, as distribuições normal e loggamma 
+\
+\
+
+#### Moderada IPAQ
+```{python echo = T, results = 'hide'}
+dist = distfit(alpha=0.05, smooth=10)
+
+b = np.array(modipaq_p_quartil_dados)
+
+
+moderada_fit = dist.fit_transform(b)
+best_distr = dist.model
+```
+
+``` {python}
+dist.summary
+dist.plot_summary()
+```
+
+Com base na análise acima, temos como distribuições candidatas para o nosso modelo misto, as distribuições normal e loggamma 
+
+\
+\
+
+#### Vigorosa IPAQ
+```{python echo = T, results = 'hide'}
+dist = distfit(alpha=0.05, smooth=10)
+
+c = np.array(vigipaq_p_quartil_dados)
+
+
+vigorosa_fit = dist.fit_transform(c)
+best_distr = dist.model
+```
+
+``` {python}
+dist.summary
+dist.plot_summary()
+```
+
+Com base na análise acima, temos como distribuições candidatas para o nosso modelo misto, as distribuições normal e loggamma 
+
+
+Agora, vamos construir subplots com um gráfico quantil-quantil, para analisarmos melhor as possíveis distribuições de probabilidade para os nossos modelos
+\
+\
+
+#### Caminhada IPAQ 
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+sns.histplot(leve_IPAQ, kde=True, ax=ax1)
+ax1.set_xlabel('Caminhada IPAQ')
+sns.distplot(leve_IPAQ, fit=stats.gamma, kde=False, ax=ax2)
+ax2.set_xlabel('Caminhada IPAQ')
+ax1.set_ylabel('Frequência')
+ax2.set_ylabel('FDP (gamma)')
+
+pp = sm.ProbPlot(df_leve_ipaq.Caminhada_IPAQ_10, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Dados ordenados')
+ax3.set_xlabel('Quantis teóricos (normal)')
+pp = sm.ProbPlot(df_leve_ipaq.Caminhada_IPAQ_10, dist=stats.gamma, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax4)
+sm.qqline(qq.axes[3], line='45')
+ax4.set_ylabel('Dados ordenados')
+ax4.set_xlabel('Quantis teóricos (gamma)')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Análise exploratória/Distribuição das VDs/Gráficos/distribuicao_caminhada_ipaq_sem_outliers_z_score.png', bbox_inches='tight', dpi = 300)
+plt.show()
+```
+\
+\
+
+#### Moderada IPAQ
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+sns.histplot(mod_IPAQ, kde=True, ax=ax1)
+ax1.set_xlabel('AF moderada IPAQ')
+sns.distplot(mod_IPAQ, fit=stats.gamma, kde=False, ax=ax2)
+ax2.set_xlabel('AF moderada IPAQ')
+ax1.set_ylabel('Frequência')
+ax2.set_ylabel('FDP (gamma)')
+
+pp = sm.ProbPlot(df_mod_ipaq.Moderada_IPAQ_10, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Dados ordenados')
+ax3.set_xlabel('Quantis teóricos (normal)')
+pp = sm.ProbPlot(df_mod_ipaq.Moderada_IPAQ_10, dist=stats.gamma, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax4)
+sm.qqline(qq.axes[3], line='45')
+ax4.set_ylabel('Dados ordenados')
+ax4.set_xlabel('Quantis teóricos (gamma)')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Análise exploratória/Distribuição das VDs/Gráficos/distribuicao_moderada_ipaq_sem_outliers_z_score.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+\
+
+#### Vigorosa IPAQ
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+sns.histplot(vig_IPAQ, kde=True, ax=ax1)
+ax1.set_xlabel('AF vigorosa IPAQ')
+sns.distplot(vig_IPAQ, fit=stats.gamma, kde=False, ax=ax2)
+ax2.set_xlabel('AF vigorosa IPAQ')
+ax1.set_ylabel('Frequência')
+ax2.set_ylabel('FDP (gamma)')
+
+pp = sm.ProbPlot(df_vig_ipaq.Vigorosa_IPAQ_10, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Dados ordenados')
+ax3.set_xlabel('Quantis teóricos (normal)')
+pp = sm.ProbPlot(df_vig_ipaq.Vigorosa_IPAQ_10, dist=stats.gamma, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax4)
+sm.qqline(qq.axes[3], line='45')
+ax4.set_ylabel('Dados ordenados')
+ax4.set_xlabel('Quantis teóricos (gamma)')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Análise exploratória/Distribuição das VDs/Gráficos/distribuicao_vigorosa_ipaq_sem_outliers_z_score.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+\
+
+## Dados do FLEEM System
+
+### Importar banco de dados
+``` {python}
+dados = pd.read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado.xlsx')
+``` 
+
+
+### Agora, vamos remover os dados faltantes, pois estes podem impactar na nossa inspeção. Para isso, usei a função dropna()
+``` {python}
+dados = dados.dropna()
+``` 
+
+
+### Salvar os dados do FLEEM em uma variável, framentado em intensidades de AF 
+``` {python}
+leve_FLEEM = list(dados['Leve_FLEEM'].values)
+levefleem_p_quartil_dados = pd.DataFrame(dados['Leve_FLEEM'])
+
+mod_FLEEM = list(dados['Moderada_FLEEM_10'].values)
+modfleem_p_quartil_dados = pd.DataFrame(dados['Moderada_FLEEM_10'])
+
+vig_FLEEM = list(dados['Vigorosa_FLEEM_10'].values)
+vigfleem_p_quartil_dados = pd.DataFrame(dados['Vigorosa_FLEEM_10'])
+``` 
+
+Agora vamos calcular os percentis dos dados
+
+### Leve FLEEM 
+``` {python}
+df_leve_fleem = levefleem_p_quartil_dados.sort_values(by=['Leve_FLEEM'], ascending=True).reset_index()
+df_leve_fleem['count'] = df_leve_fleem.index + 1
+n_rows = df_leve_fleem.shape[0]
+df_leve_fleem['percentil_area'] = (df_leve_fleem['count'])/n_rows
+df_leve_fleem['percentil_teorico'] = ndtri(df_leve_fleem['percentil_area'])
+df_leve_fleem['percentil_atual'] = (df_leve_fleem['Leve_FLEEM'] - df_leve_fleem['Leve_FLEEM'].mean())/df_leve_fleem['Leve_FLEEM'].std(ddof=0)
+```
+
+
+### Moderada FLEEM
+``` {python}
+df_mod_fleem = modfleem_p_quartil_dados.sort_values(by=['Moderada_FLEEM_10'], ascending=True).reset_index()
+df_mod_fleem['count'] = df_mod_fleem.index + 1
+n_rows = df_mod_fleem.shape[0]
+df_mod_fleem['percentil_area'] = (df_mod_fleem['count'])/n_rows
+df_mod_fleem['percentil_teorico'] = ndtri(df_mod_fleem['percentil_area'])
+df_mod_fleem['percentil_atual'] = (df_mod_fleem['Moderada_FLEEM_10'] - df_mod_fleem['Moderada_FLEEM_10'].mean())/df_mod_fleem['Moderada_FLEEM_10'].std(ddof=0)
+```
+
+### Vigorosa FLEEM
+``` {python}
+df_vig_fleem = vigfleem_p_quartil_dados.sort_values(by=['Vigorosa_FLEEM_10'], ascending=True).reset_index()
+df_vig_fleem['count'] = df_vig_fleem.index + 1
+n_rows = df_vig_fleem.shape[0]
+df_vig_fleem['percentil_area'] = (df_vig_fleem['count'])/n_rows
+df_vig_fleem['percentil_teorico'] = ndtri(df_vig_fleem['percentil_area'])
+df_vig_fleem['percentil_atual'] = (df_vig_fleem['Vigorosa_FLEEM_10'] - df_vig_fleem['Vigorosa_FLEEM_10'].mean())/df_vig_fleem['Vigorosa_FLEEM_10'].std(ddof=0)
+```
+
+
+### Agora vamos testar as distribuições por bruteforce
+
+
+#### Leve FLEEM 
+``` {python echo = T, results = 'hide'}
+dist = distfit(alpha=0.05, smooth=10)
+
+d = np.array(levefleem_p_quartil_dados)
+
+
+dist.fit_transform(d)
+best_distr = dist.model
+``` 
+
+``` {python}
+dist.summary
+dist.plot_summary()
+``` 
+
+A partir da análise acima, temos como distribuições candidatas, a normal e a Gamma. 
+\
+\
+
+#### Moderada FLEEM
+``` {python echo = T, results = 'hide'}
+dist = distfit(alpha=0.05, smooth=10)
+
+e = np.array(modfleem_p_quartil_dados)
+
+
+dist.fit_transform(e)
+best_distr = dist.model
+
+```
+
+``` {python}
+dist.summary
+dist.plot_summary()
+```
+
+
+Distribuições candidatas: normal, gamma e loggamma
+
+
+#### Vigorosa FLEEM
+``` {python echo = T, results = 'hide'}
+dist = distfit(alpha=0.05, smooth=10)
+
+f = np.array(vigfleem_p_quartil_dados)
+
+
+dist.fit_transform(f)
+best_distr = dist.model
+
+```
+
+``` {python}
+dist.summary
+dist.plot_summary()
+```
+
+Distribuições candidatas: normal e loggamma
+
+
+Agora, vamos construir subplots com um gráfico quantil-quantil, para analisarmos melhor as possíveis distribuições de probabilidade para os nossos modelos
+\
+\
+
+#### Leve FLEEM
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+sns.histplot(leve_FLEEM, kde=True, ax=ax1)
+ax1.set_xlabel('AF leve FLEEM')
+sns.distplot(leve_FLEEM, fit=stats.gamma, kde=False, ax=ax2)
+ax2.set_xlabel('AF leve FLEEM')
+ax1.set_ylabel('Frequência')
+ax2.set_ylabel('FDP (gamma)')
+
+pp = sm.ProbPlot(df_leve_fleem.Leve_FLEEM, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Dados ordenados')
+ax3.set_xlabel('Quantis teóricos (normal)')
+pp = sm.ProbPlot(df_leve_fleem.Leve_FLEEM, dist=stats.gamma, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax4)
+sm.qqline(qq.axes[3], line='45')
+ax4.set_ylabel('Dados ordenados')
+ax4.set_xlabel('Quantis teóricos (gamma)')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Análise exploratória/Distribuição das VDs/Gráficos/distribuicao_leve_fleem.png', bbox_inches='tight', dpi = 300)
+plt.show()
+
+```
+\
+\
+
+#### Moderada FLEEM
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+sns.histplot(mod_FLEEM, kde=True, ax=ax1)
+ax1.set_xlabel('AF moderada FLEEM')
+sns.distplot(mod_FLEEM, fit=stats.gamma, kde=False, ax=ax2)
+ax2.set_xlabel('AF moderada FLEEM')
+ax1.set_ylabel('Frequência')
+ax2.set_ylabel('FDP (gamma)')
+
+pp = sm.ProbPlot(df_mod_fleem.Moderada_FLEEM_10, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Dados ordenados')
+ax3.set_xlabel('Quantis teóricos (normal)')
+pp = sm.ProbPlot(df_mod_fleem.Moderada_FLEEM_10, dist=stats.gamma, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax4)
+sm.qqline(qq.axes[3], line='45')
+ax4.set_ylabel('Dados ordenados')
+ax4.set_xlabel('Quantis teóricos (gamma)')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Análise exploratória/Distribuição das VDs/Gráficos/distribuicao_moderada_fleem.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+\
+
+#### Vigorosa FLEEM
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+sns.histplot(vig_FLEEM, kde=True, ax=ax1)
+ax1.set_xlabel('AF vigorosa FLEEM')
+sns.distplot(vig_FLEEM, fit=stats.gamma, kde=False, ax=ax2)
+ax2.set_xlabel('AF vigorosa FLEEM')
+ax1.set_ylabel('Frequência')
+ax2.set_ylabel('FDP (gamma)')
+
+pp = sm.ProbPlot(df_vig_fleem.Vigorosa_FLEEM_10, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Dados ordenados')
+ax3.set_xlabel('Quantis teóricos (normal)')
+pp = sm.ProbPlot(df_vig_fleem.Vigorosa_FLEEM_10, dist=stats.gamma, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax4)
+sm.qqline(qq.axes[3], line='45')
+ax4.set_ylabel('Dados ordenados')
+ax4.set_xlabel('Quantis teóricos (gamma)')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Análise exploratória/Distribuição das VDs/Gráficos/distribuicao_vigorosa_fleem.png', bbox_inches='tight', dpi = 300)
+plt.show()
+
+``` 
+

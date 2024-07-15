@@ -1,0 +1,1 @@
+Nessa etapa, os dados processados do IPAQ e do FLEEM foram concatenados em um único banco de dados, se baseando no ID dos sujeitos. Os dados de caracterização da amostra também foram concatenados nesta etapa. 

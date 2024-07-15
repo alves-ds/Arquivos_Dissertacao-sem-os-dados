@@ -1,0 +1,25 @@
+- Podemos implementar na discussão sobre período de monitoramento e da comparação do estimador baseado em medida única e média das medidas, a premissa 2 da teoria clássica do valor real, na qual E(X) = Real (média populacional), destacando que, isso nos leva a crer que, quanto maior o número de medidas e tomada a média dessas medidas, mais próxima ela será do valor real. 
+
+- Tente argumentar em algum momento que assumir testes paralelos para atividade física é algo complicado, sobretudo argumentando em relação à noção de sistemas dinâmicos e a visão de atividade física como uma matriz de estados estocásticos. 
+
+- Maneiras de pensar confiabilidade = correlação entre o valor observado e o valor real/ correlação entre dois testes paralelos. 
+
+- Estimativas de confiabilidade teste-reteste são mais apropriadas para mensurar atributos estáveis em função do tempo, por não serem suscetíveis à um efeito de carry-over e por serem mais estáveis em função do tempo. 
+
+- A equação de Spearman brown foi desenvolvida com o objetivo de ser aplicada no contexto de confiabilidade estimada com base na correlação entre testes paralelos, e não no contexto de confiabilidade teste-reteste em si. 
+
+- Citar que nossos achados são interessantes pois decadam a importância do uso de equações de correção para atenuação, levando em conta a confiabilidade da medida quando formos traçar relações desta medida com outras medidas. 
+
+- A correlação entre dois testes "falíveis" não pode ser maior do que a correlação entre um teste falível e seu valor real. 
+
+- Domain sampling theory
+
+- Quanto mais testes aleatoriamente amostrados de um domínio finito, maior a estimativa de confiabilidade. 
+
+- O modelo de testes paralelos é um caso particular do modelo de amostragem do domínio. 
+
+- Verificar o impacto do número de medidas sobre a precisão das estimativas de confiabilidade, pois como o livro do Nunally sustenta, quanto mais medidas, mais precisas as estimativas.
+
+- EPM (Segundo o livro do Nunally) = o desvio padrão esperado dos valores para uma pessoa, dado um grande número de testes aleatórios e paralelos. 
+
+

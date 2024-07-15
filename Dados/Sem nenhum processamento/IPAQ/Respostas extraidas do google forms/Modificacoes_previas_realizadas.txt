@@ -1,0 +1,3 @@
+Os dados desta pasta sofreram as seguintes modificações: 
+- adição da variável 'ID' para possibilitar as próximas etapas de manipulação e concatenação do banco de dados
+- Os dados do screening dos participantes foram limpos, e somente as variáveis de idade, sexo, nível de escolaridade, ocupação e nível de autoeficácia para a prática de atividade física foram mantidas

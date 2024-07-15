@@ -1,0 +1,1 @@
+Nessa etapa de processamento, os dados do FLEEM system foram processados em ambiente matlab, para se estimar a quantidade de aceleração realizada em diferentes intensidades ao longo dos dias. 

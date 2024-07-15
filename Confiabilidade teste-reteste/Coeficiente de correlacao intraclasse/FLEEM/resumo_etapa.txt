@@ -1,0 +1,3 @@
+Nessa etapa, foram feitas as estimativas do ICC para os dados do FLEEM system. 
+
+Antes disso, os dados foram transpostos do formato long para o wide, pois este é o formato necessário para estimar o ICC

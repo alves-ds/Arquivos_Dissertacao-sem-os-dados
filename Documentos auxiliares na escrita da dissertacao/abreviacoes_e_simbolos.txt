@@ -1,0 +1,30 @@
+AF 	Atividade Física
+IPAQ	Questionário Internacional de Atividade Física
+OMS	Organização Mundial da Saúde
+Hn	Hipótese N-ária
+CAAE	Certificado de Apresentação de Apreciação Ética
+TCLE	Termo de consentimento livre e esclarecido 
+PAR-Q	Questionário de Prontidão para Atividade física  
+GLIMMPSE General Linear Mixed Model Power and Sample Size
+GLMM	Modelo Linear Generalizado Misto
+API	Interface de Programação de Aplicação
+COVID-19	Coronavirus disease 2019
+IMC	Índice de massa corporal
+IDE	Ambiente de desenvolvimento integrado
+VMa	Vetor Magnitude de Aceleração
+95% IC Intervalo de confiança de 95%
+AIC	Critério de informação de Akaike
+QIC	Critério de quasi-verossimilhança sob o modelo de independência
+ICC	Coeficiente de correlação intraclasse
+EPM	Erro padrão da medida	
+ICC2	Coeficiente de correlação intraclasse, modelo de avaliadores aleatórios
+SPSS	Statistical Package for Social Science
+DP	Desvio padrão
+ICCMU	Coeficiente de correlação intraclasse, com estimador baseado em medida única
+ICCMM	Coeficiente de correlação intraclasse, com estimador baseado na média das medidas
+Sij	Valor observado para o i-ésimo indivíduo na j-ésima semana
+Kg	Quilogramas
+Kg/m²	Quilogramas por metro quadrado
+ACSM	American College of Sports Medicine
+MET	Equivalente metabólico
+REACT

@@ -1,0 +1,1 @@
+Esta pasta foi criada para concatenar todo o processamento realizado nos dados, gerando assim um arquivo markdown, para ser exposto por meio de um Github pages. 

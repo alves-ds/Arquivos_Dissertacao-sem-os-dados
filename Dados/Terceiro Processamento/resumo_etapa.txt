@@ -1,0 +1,1 @@
+Nessa etapa, após os dados terem sido processados em ambiente Matlab, estes foram novamente processados em R para se quantificar a quantidade de aceleração de centro de massa realizada em diferentes intensidades ao longo das 5 semanas

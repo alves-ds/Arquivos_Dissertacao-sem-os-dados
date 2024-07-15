@@ -1,0 +1,15 @@
+- Resumo sobre o que é AF, sua relevância na ciência da saúde, e, com base nisso, a importância de que este fenômeno seja mensurado de forma adequada e válida;
+
+- O que é AF? Destacar que, antes de se medir qualquer fenômeno, é importante que primeiro haja uma conceitualização teórica sobre o que este fenômeno é, abordando a definição clássica de AF e como ela é diferente do gasto calórico, que é o seu subproduto. 
+
+- Como medir AF? Destacar os diferentes métodos existentes, objetivos, de autorrelato, suas possíveis limitações e novas tendências como é o caso dos smartphones, dando uma base sobre como é o uso de smartphones atualmente no mundo.
+
+- Como essa medidas disponíveis são aplicadas? Descrever como é feito o uso das ferramentas citadas no tópico anterior, dando ênfase nas medidas obtidas ao longo de 7 dias; 
+
+- Por que 7 dias? Explicar qual é a base para se medir a AF por 7 dias e no que se baseia, explicando mais profundamento o que é a equação de spearman-brown;
+
+- Quais são os pressupostos para o uso da equação de spearman-brown? eles estão sendo seguidos? Destacar o quão esse pressuposto n é plausível para AF e evidências que podem colocar o uso da equação em cheque (por ex, o efeito da sazonalidade)
+
+- Destacar que mesmo não estando claro se 7 dias são o suficiente, existem estudos intervencionistas. 
+
+- Destacar a importância de uma maior compreensão da confiabilidade teste-reteste de medidas de AF obtidas pelo acelerômetro do celular (por ser uma abordagem emergente) e por questionários (por serem amplamente utilizados)

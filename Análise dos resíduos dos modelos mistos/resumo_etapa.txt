@@ -1,0 +1,2 @@
+Nessa etapa, foi feita a análise dos resíduos dos modelos gerados com distribuição normal e gamma. 
+Para as variáveis do IPAQ, observou-se dados com bastante assimetria, o que levantou a necessidade de uma exploração adicional quanto à possível existência de outliers nos dados. 

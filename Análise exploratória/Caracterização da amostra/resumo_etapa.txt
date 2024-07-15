@@ -1,0 +1,1 @@
+Nessa etapa, a caracterização da amostra foi obtida, seja através do script em R, quanto através do software Jamovi. Essas estimativar foram utilizadas para construir tabelas usando-se o software Microsoft Excel. 

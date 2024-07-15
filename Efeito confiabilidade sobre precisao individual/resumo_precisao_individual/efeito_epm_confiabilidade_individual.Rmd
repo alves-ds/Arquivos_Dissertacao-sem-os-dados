@@ -1,0 +1,119 @@
+---
+title: "Efeito RPM sobre a confiabilidade individual"
+author: "Douglas Silva Alves"
+date: "2024-03-06"
+output: 
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    df_print: paged
+    toc: TRUE
+    toc_depth: 2
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+
+---
+
+# Objetivo
+
+Este documento markdown foi construído para expor os resultados da dissertação com o que concerne ao efeito da confiabilidade obtida sobre o nível de precisão das estimativas obtidas para cada sujeito em cada semana. Optou-se pela construção deste documento, para facilitar a visualização dos resultados, tendo em vista que estes resultaram tabelas grandes. 
+
+Vamos começar importando as bibliotecas necessárias.
+
+# Importação das bibliotecas
+``` {r message=FALSE, warning=FALSE}
+
+library(readxl)
+library(knitr)
+library(dplyr)
+library(tidyr)
+library(kableExtra)
+``` 
+
+Agora, vamos importar todas as tabelas geradas para cada desfecho e confiabilidade estimada
+
+# Importação das tabelas geradas
+
+## Medida única
+### IPAQ
+``` {r message=FALSE, warning=FALSE}
+tabela_caminhada_mu <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_caminhada_mu.xlsx')
+
+tabela_moderada_mu <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_moderada_mu.xlsx')
+
+tabela_vigorosa_mu <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_vigorosa_mu.xlsx')
+```
+
+### FLEEM SYSTEM
+``` {r message=FALSE, warning=FALSE}
+tabela_fleem_leve_mu <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_leve_fleem_mu.xlsx')
+
+tabela_fleem_moderada_mu <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_moderada_fleem_mu.xlsx')
+
+tabela_fleem_vigorosa_mu <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_vigorosa_fleem_mu.xlsx')
+```
+
+
+## Média das estimativas
+### IPAQ
+``` {r message=FALSE, warning=FALSE}
+tabela_caminhada_mm <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_caminhada_mm.xlsx')
+
+tabela_moderada_mm <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_moderada_mm.xlsx')
+
+tabela_vigorosa_mm <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_vigorosa_mm.xlsx')
+```
+
+### FLEEM SYSTEM
+``` {r message=FALSE, warning=FALSE}
+tabela_fleem_leve_mm <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_leve_fleem_mm.xlsx')
+
+tabela_fleem_moderada_mm <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_moderada_fleem_mm.xlsx')
+
+tabela_fleem_vigorosa_mm <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Efeito confiabilidade sobre precisao individual/tabela_epm_vigorosa_fleem_mm.xlsx')
+```
+
+
+
+# Visualizar tabelas 
+
+Agora vamos visualizar os resultados obtidos com relação ao efeito do nível de confiabilidade sobre a precisão das estimativas obtidas. O número entre os parenteses indica à qual semana se referem as estimativas e o intervalo de confiança de 95% gerado. 
+
+## Medida única
+
+### IPAQ
+``` {r}
+tabela_caminhada_mu
+tabela_moderada_mu
+tabela_vigorosa_mu
+
+```
+
+
+### Fleem System
+``` {r}
+tabela_fleem_leve_mu
+tabela_fleem_moderada_mu
+tabela_fleem_vigorosa_mu
+
+```
+
+## Média das estimativas
+
+### IPAQ
+``` {r}
+tabela_caminhada_mm
+tabela_moderada_mm
+tabela_vigorosa_mm
+
+```
+
+
+### Fleem System
+``` {r}
+tabela_fleem_leve_mm
+tabela_fleem_moderada_mm
+tabela_fleem_vigorosa_mm
+
+```

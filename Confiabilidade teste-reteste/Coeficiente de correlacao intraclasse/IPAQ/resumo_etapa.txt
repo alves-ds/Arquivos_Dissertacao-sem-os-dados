@@ -1,0 +1,3 @@
+Nessa etapa, foram feitas as análises do coeficiente de correlação intraclasse para o IPAQ.
+Antes das análises propriamente ditas, primeiro foi necessário transpor o banco de dados novamente para um formato Wide. Isso foi feito por meio do Jamovi. 
+

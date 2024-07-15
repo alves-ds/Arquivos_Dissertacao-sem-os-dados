@@ -1,0 +1,10 @@
+Nesta etapa, antes de proceder com a análise exploratória dos dados, foi necessário fazer uma transposição nos dados, para que a distribuição das variáveis pudessem ser testadas. 
+
+Toda a transposição dos dados foi feita por meio do Jamovi. 
+
+
+Após isso, tendo em vista que utilizarei uma biblioteca para testar diferentes distribuições de probabilidade, criei um script em R para somar uma constante (10) às VDs que possuem valores 0, tendo em vista que algumas distribuições de probabilidade não se adequam à estes valores.
+
+
+
+Após verificar a distribuição dos dados e o ajuste dos modelos do IPAQ, retomei essa etapa para verificar indivíduos que poderiam ser considerados outliers e removê-los.  

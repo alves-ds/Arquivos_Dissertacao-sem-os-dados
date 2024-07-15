@@ -1,0 +1,24 @@
+Perguntas: 
+1) Qual é o comportamento de estimativas da AF de indivíduos adultos ao longo de diferentes semanas? 
+
+2) Qual é o nível de confiabilidade teste-reteste de estimativas de atributos da AF de indivíduos adultos realizadas por meio do IPAQ e smartphone ao longo de diferentes semanas? 
+
+3) Monitorar os indivíduos por um período superior à 1 semana melhora a confiabilidade teste-reteste dessas estimativas de AF?
+
+4) Qual é o impacto da confiabilidade teste-reteste das estimativas de AF sobre a precisão destas estimativas realizadas para cada indivíduo em cada semana de monitoramento? 
+
+Obj geral: analisar a confiabilidade teste-reteste de estimativas de minutos de atividade física semanal obtidas por meio do IPAQ e smartphone em adultos
+
+Obj especifico: 
+	1) verificar o comportamento de estimativas da AF de indivíduos adultos ao longo de diferentes semanas 
+	2) verificar o grau de confiabilidade teste-reteste destas estimativas 
+	3) verificar o impacto de um período de monitoramento superior à 1 semana sobre estas medidas de confiabilidade
+	4) verificar o impacto da confiabilidade teste-reteste sobre o nível de precisão das estimativas realizadas para cada sujeito em cada semana
+
+Hipóteses: 
+•	H1: O IPAQ e o smartphone fornecem estimativas de minutos de atividade física semanal de baixa confiabilidade quando baseadas em um período de monitoramento inferior à 2 semanas;
+•	H2: O IPAQ e o smartphone fornecem estimativas de minutos de atividade física semanal de alto erro padrão quando baseadas em um período de monitoramento inferior à 2 semanas; 
+•	H3: A cada semana a mais de monitoramento, ocorre um aumento no coeficiente de correlação intraclasse de medida única para todas as estimativas de minutos de atividade física semanal obtidas por meio do IPAQ e smartphone;
+•	H4: A cada semana a mais de monitoramento, ocorre um aumento no coeficiente de correlação intraclasse de média das medidas para todas as estimativas de minutos de atividade física semanal obtidas por meio do IPAQ e smartphone;
+•	H5: A cada semana a mais de monitoramento, ocorre uma redução no erro padrão da medida baseado no coeficiente de correlação intraclasse de medida única ou média das medidas para todas as estimativas de minutos de atividade física semanal obtidas por meio do IPAQ e smartphone;
+•	H6: A confiabilidade teste-reteste das estimativas de minutos de atividade física semanal obtidas por meio do IPAQ e smartphone impactam o nível de precisão das estimativas realizadas para cada sujeito em cada semana, sendo observado que, quando maior a confiabilidade, menores os intervalos de confiança em torno destas estimativas. 

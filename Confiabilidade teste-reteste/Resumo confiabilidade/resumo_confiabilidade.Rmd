@@ -1,0 +1,518 @@
+---
+title: "Resumo confiabilidade"
+author: "Douglas Silva Alves"
+date: "2024-02-09"
+output: 
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    df_print: paged
+    toc: TRUE
+    toc_depth: 3
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+\
+\
+
+# Apresentação
+
+O presente documento foi confeccionado para apresentar de forma resumida os resultados da análise da confiabilidade teste-reteste por meio do coeficiente de correlação intraclasse (ICC), assim como, por meio do erro padrão da medida (EPM)
+
+
+Começaremos estimando o ICC para diferentes semanas de monitoramento, se baseando tanto no ICC de medida única quanto o de média das medidas
+\
+\
+
+# ICC
+
+## Fleem System
+
+### 5 semanas
+
+#### Primeiro, vamos carregar os nossos pacotes
+```{r message=FALSE, warning=FALSE}
+library(psych)
+library("tidyverse")
+library("dplyr")
+library(readxl)
+``` 
+
+#### Agora, vamos carregar o nosso banco de dados
+``` {r}
+dados <- read.csv('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Confiabilidade teste-reteste/Coeficiente de correlacao intraclasse/FLEEM/dados_fleem_wide.csv')
+``` 
+
+
+Primeiro, vamos trabalhar com os dados de todas as 5 semanas
+
+
+#### Agora, vamos separar o nosso banco de dados nas 3 diferentes intensidades
+``` {r}
+dados_leve <- dados[2:6]
+dados_moderada <- dados[7:11]
+dados_vigorosa <- dados[12:16]
+``` 
+
+
+#### Agora vamos estimar o coeficiente de correlação intraclasse para cada uma das intensidades e exibí-los
+``` {r}
+icc_leve <- ICC(dados_leve, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_leve
+icc_moderada <- ICC(dados_moderada, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada
+icc_vigorosa <- ICC(dados_vigorosa, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa
+``` 
+
+Agora, vamos repetir o mesmo procedimento, porém para 4, 3 e 2 semanas
+\
+\
+
+### 4 semanas
+
+#### Primeiramente, vamos filtrar nossos bancos de dados para que fique somente com medidas de 4 semanas
+``` {r}
+dados_leve_4_semanas <- dados_leve %>%
+  select(-Leve_FLEEM.5)
+
+dados_moderada_4_semanas <- dados_moderada %>%
+  select(-Moderada_FLEEM_10.5)
+
+dados_vigorosa_4_semanas <- dados_vigorosa %>%
+  select(-Vigorosa_FLEEM_10.5)
+``` 
+
+Agora, vamos estimar e exibir os ICCs
+``` {r}
+icc_leve_4_semanas <- ICC(dados_leve_4_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_leve_4_semanas
+icc_moderada_4_semanas <- ICC(dados_moderada_4_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada_4_semanas
+icc_vigorosa_4_semanas <- ICC(dados_vigorosa_4_semanas, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa_4_semanas
+```
+\
+\
+
+### 3 semanas
+
+#### Primeiramente, vamos filtrar nossos bancos de dados para que fique somente com medidas de 3 semanas
+``` {r}
+dados_leve_3_semanas <- dados_leve %>%
+  select(-Leve_FLEEM.5, -Leve_FLEEM.4)
+
+dados_moderada_3_semanas <- dados_moderada %>%
+  select(-Moderada_FLEEM_10.5, -Moderada_FLEEM_10.4)
+
+dados_vigorosa_3_semanas <- dados_vigorosa %>%
+  select(-Vigorosa_FLEEM_10.5, -Vigorosa_FLEEM_10.4)
+```
+
+Agora vamos estimar e exibir os ICCs
+
+``` {r}
+icc_leve_3_semanas <- ICC(dados_leve_3_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_leve_3_semanas
+icc_moderada_3_semanas <- ICC(dados_moderada_3_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada_3_semanas
+icc_vigorosa_3_semanas <- ICC(dados_vigorosa_3_semanas, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa_3_semanas
+``` 
+\
+\
+
+### 2 semanas
+
+#### Primeiramente, vamos filtrar nossos bancos de dados para que fique somente com medidas de 2 semanas
+``` {r}
+dados_leve_2_semanas <- dados_leve %>%
+  select(-Leve_FLEEM.5, -Leve_FLEEM.4, -Leve_FLEEM.3)
+
+dados_moderada_2_semanas <- dados_moderada %>%
+  select(-Moderada_FLEEM_10.5, -Moderada_FLEEM_10.4, -Moderada_FLEEM_10.3)
+
+dados_vigorosa_2_semanas <- dados_vigorosa %>%
+  select(-Vigorosa_FLEEM_10.5, -Vigorosa_FLEEM_10.4, -Vigorosa_FLEEM_10.3)
+```
+
+
+Agora vamos estimar os ICCs e exibí-los
+``` {r}
+icc_leve_2_semanas <- ICC(dados_leve_2_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_leve_2_semanas
+icc_moderada_2_semanas <- ICC(dados_moderada_2_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada_2_semanas
+icc_vigorosa_2_semanas <- ICC(dados_vigorosa_2_semanas, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa_2_semanas
+``` 
+\
+\
+
+Agora vamos reproduzir essas análises para o IPAQ
+
+## IPAQ
+\
+
+### 5 semanas
+
+#### Primeiro, vamos carregar o banco de dados
+``` {r}
+dados <- read.csv('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Confiabilidade teste-reteste/Coeficiente de correlacao intraclasse/IPAQ/dados_ipaq_icc_wide.csv')
+```
+
+
+#### Agora, vamos separar o nosso banco de dados nas 3 diferentes intensidades
+``` {r}
+dados_moderada <- dados[2:6]
+dados_vigorosa <- dados[c(7:11)]
+dados_caminhada <- dados[c(12:16)]
+``` 
+
+
+Agora vamos estimar e exibir o ICC para cada intensidade
+
+
+``` {r}
+icc_caminhada <- ICC(dados_caminhada, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_caminhada
+icc_moderada <- ICC(dados_moderada, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada
+icc_vigorosa <- ICC(dados_vigorosa, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa
+``` 
+\
+\
+
+### 4 semanas
+``` {r}
+# Primeiramente, vamos filtrar nossos bancos de dados para que fique somente com medidas de 4 semanas
+dados_moderada_4_semanas <- dados_moderada %>%
+  select(-Moderada_IPAQ_10.5)
+
+dados_vigorosa_4_semanas <- dados_vigorosa %>%
+  select(-Vigorosa_IPAQ_10.5)
+
+dados_caminhada_4_semanas <- dados_caminhada %>%
+  select(-Caminhada_IPAQ_10.5)
+
+
+# Agora vamos estimar o coeficiente de correlação intraclasse para cada uma das intensidades
+
+icc_caminhada_4_semanas <- ICC(dados_caminhada_4_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_caminhada_4_semanas
+icc_moderada_4_semanas <- ICC(dados_moderada_4_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada_4_semanas
+icc_vigorosa_4_semanas <- ICC(dados_vigorosa_4_semanas, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa_4_semanas
+``` 
+\
+\
+
+### 3 semanas
+``` {r}
+# Primeiramente, vamos filtrar nossos bancos de dados para que fique somente com medidas de 3 semanas
+dados_moderada_3_semanas <- dados_moderada %>%
+  select(-Moderada_IPAQ_10.4, -Moderada_IPAQ_10.5)
+
+dados_vigorosa_3_semanas <- dados_vigorosa %>%
+  select(-Vigorosa_IPAQ_10.4, -Vigorosa_IPAQ_10.5)
+
+dados_caminhada_3_semanas <- dados_caminhada %>%
+  select(-Caminhada_IPAQ_10.4, -Caminhada_IPAQ_10.5)
+
+
+# Agora vamos estimar o coeficiente de correlação intraclasse para cada uma das intensidades
+
+icc_caminhada_3_semanas <- ICC(dados_caminhada_3_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_caminhada_3_semanas
+icc_moderada_3_semanas <- ICC(dados_moderada_3_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada_3_semanas
+icc_vigorosa_3_semanas <- ICC(dados_vigorosa_3_semanas, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa_3_semanas
+``` 
+\
+\
+
+### 2 semanas
+``` {r}
+# Primeiramente, vamos filtrar nossos bancos de dados para que fique somente com medidas de 2 semanas
+dados_moderada_2_semanas <- dados_moderada %>%
+  select(-Moderada_IPAQ_10.4, -Moderada_IPAQ_10.5, -Moderada_IPAQ_10.3)
+
+dados_vigorosa_2_semanas <- dados_vigorosa %>%
+  select(-Vigorosa_IPAQ_10.4, -Vigorosa_IPAQ_10.5, -Vigorosa_IPAQ_10.3)
+
+dados_caminhada_2_semanas <- dados_caminhada %>%
+  select(-Caminhada_IPAQ_10.4, -Caminhada_IPAQ_10.5, -Caminhada_IPAQ_10.3)
+
+
+# Agora vamos estimar o coeficiente de correlação intraclasse para cada uma das intensidades
+
+icc_caminhada_2_semanas <- ICC(dados_caminhada_2_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_caminhada_2_semanas
+icc_moderada_2_semanas <- ICC(dados_moderada_2_semanas, missing=TRUE, alpha = .05, lmer=TRUE)
+icc_moderada_2_semanas
+icc_vigorosa_2_semanas <- ICC(dados_vigorosa_2_semanas, missing=TRUE, alpha = .05, lmer = TRUE)
+icc_vigorosa_2_semanas
+``` 
+\
+\
+
+Agora vamos trabalhar com o erro padrão da medida (EPM)
+
+# EPM
+
+vamos carregar os bancos de dados no formato long, para podermos estimar o desvio padrão de cada um dos desfechos
+
+
+#### Importar bancos de dados
+
+``` {r}
+# Dados IPAQ
+dados_ipaq <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sexto processamento/banco_dados_reestruturado_sem_outliers.xlsx")
+
+# Dados FLEEM
+dados_fleem <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado.xlsx")
+``` 
+
+
+Precisaremos criar outros bancos de dados, somente com os dados de 2, 3 e 4 semanas
+
+``` {r}
+# IPAQ
+dados_ipaq_4_semanas <- dados_ipaq[dados_ipaq$Semana >= 1 & dados_ipaq$Semana <= 4, ]
+dados_ipaq_3_semanas <- dados_ipaq[dados_ipaq$Semana >= 1 & dados_ipaq$Semana <= 3, ]
+dados_ipaq_2_semanas <- dados_ipaq[dados_ipaq$Semana >= 1 & dados_ipaq$Semana <= 2, ]
+
+
+# FLEEM
+dados_fleem_4_semanas <- dados_fleem[dados_fleem$Semana >= 1 & dados_fleem$Semana <= 4, ]
+dados_fleem_3_semanas <- dados_fleem[dados_fleem$Semana >= 1 & dados_fleem$Semana <= 3, ]
+dados_fleem_2_semanas <- dados_fleem[dados_fleem$Semana >= 1 & dados_fleem$Semana <= 2, ]
+``` 
+
+
+Agora vamos estimar os desvios padrão para cada desfecho
+
+
+``` {r}
+# IPAQ
+
+# 5 semanas
+dp_caminhada_5_semanas <- sd(na.omit(dados_ipaq$Caminhada_IPAQ_10))
+dp_ipaq_moderada_5_semanas <- sd(na.omit(dados_ipaq$Moderada_IPAQ_10))
+dp_ipaq_vigorosa_5_semanas <- sd(na.omit(dados_ipaq$Vigorosa_IPAQ_10))
+
+# 4 Semanas
+dp_caminhada_4_semanas <- sd(na.omit(dados_ipaq_4_semanas$Caminhada_IPAQ_10))
+dp_ipaq_moderada_4_semanas <- sd(na.omit(dados_ipaq_4_semanas$Moderada_IPAQ_10))
+dp_ipaq_vigorosa_4_semanas <- sd(na.omit(dados_ipaq_4_semanas$Vigorosa_IPAQ_10))
+
+# 3 Semanas
+dp_caminhada_3_semanas <- sd(na.omit(dados_ipaq_3_semanas$Caminhada_IPAQ_10))
+dp_ipaq_moderada_3_semanas <- sd(na.omit(dados_ipaq_3_semanas$Moderada_IPAQ_10))
+dp_ipaq_vigorosa_3_semanas <- sd(na.omit(dados_ipaq_3_semanas$Vigorosa_IPAQ_10))
+
+# 2 Semanas
+dp_caminhada_2_semanas <- sd(na.omit(dados_ipaq_2_semanas$Caminhada_IPAQ_10))
+dp_ipaq_moderada_2_semanas <- sd(na.omit(dados_ipaq_2_semanas$Moderada_IPAQ_10))
+dp_ipaq_vigorosa_2_semanas <- sd(na.omit(dados_ipaq_2_semanas$Vigorosa_IPAQ_10))
+
+
+# FLEEM
+
+# 5 Semanas
+dp_leve_5_semanas <- sd(na.omit(dados_fleem$Leve_FLEEM))
+dp_fleem_moderada_5_semanas <- sd(na.omit(dados_fleem$Moderada_FLEEM_10))
+dp_fleem_vigorosa_5_semanas <- sd(na.omit(dados_fleem$Vigorosa_FLEEM_10))
+
+# 4 Semanas
+dp_leve_4_semanas <- sd(na.omit(dados_fleem_4_semanas$Leve_FLEEM))
+dp_fleem_moderada_4_semanas <- sd(na.omit(dados_fleem_4_semanas$Moderada_FLEEM_10))
+dp_fleem_vigorosa_4_semanas <- sd(na.omit(dados_fleem_4_semanas$Vigorosa_FLEEM_10))
+
+# 3 Semanas
+dp_leve_3_semanas <- sd(na.omit(dados_fleem_3_semanas$Leve_FLEEM))
+dp_fleem_moderada_3_semanas <- sd(na.omit(dados_fleem_3_semanas$Moderada_FLEEM_10))
+dp_fleem_vigorosa_3_semanas <- sd(na.omit(dados_fleem_3_semanas$Vigorosa_FLEEM_10))
+
+# 2 Semanas
+dp_leve_2_semanas <- sd(na.omit(dados_fleem_2_semanas$Leve_FLEEM))
+dp_fleem_moderada_2_semanas <- sd(na.omit(dados_fleem_2_semanas$Moderada_FLEEM_10))
+dp_fleem_vigorosa_2_semanas <- sd(na.omit(dados_fleem_2_semanas$Vigorosa_FLEEM_10))
+``` 
+
+
+Agora vamos estimar o erro padrão da medida para medida única e média das medidas para os dados de 2 a 5 semanas
+
+
+Primeiro, vamos criar uma função para estimar o erro padrão, precisando informar o desvio padrão da medida e o ICC dela
+
+#### Criar função para estimar o erro padrão da medida
+``` {r}
+calcular_erro_padrao <- function(dp, icc){
+  raiz_complementar_icc <- sqrt(1-icc)
+  ep <- dp*raiz_complementar_icc
+  
+  return(ep)
+}
+``` 
+
+
+De início, vamos trabalhar com os dados do IPAQ. Vamos estimar e exibir os erros padrão de medida única e média para diferentes semanas
+\
+\
+
+## IPAQ
+
+``` {r}
+# Caminhada 
+ep_caminhada_2_semanas_MU <- calcular_erro_padrao(dp_caminhada_2_semanas, 0.53)
+ep_caminhada_2_semanas_MM <- calcular_erro_padrao(dp_caminhada_2_semanas, 0.69)
+ep_caminhada_3_semanas_MU <- calcular_erro_padrao(dp_caminhada_3_semanas, 0.68)
+ep_caminhada_3_semanas_MM <- calcular_erro_padrao(dp_caminhada_3_semanas, 0.86)
+ep_caminhada_4_semanas_MU <- calcular_erro_padrao(dp_caminhada_4_semanas, 0.75)
+ep_caminhada_4_semanas_MM <- calcular_erro_padrao(dp_caminhada_4_semanas, 0.92)
+ep_caminhada_5_semanas_MU <- calcular_erro_padrao(dp_caminhada_5_semanas, 0.72)
+ep_caminhada_5_semanas_MM <- calcular_erro_padrao(dp_caminhada_5_semanas, 0.93)
+
+# exibir
+ep_caminhada_2_semanas_MU # MU = medida unica
+ep_caminhada_2_semanas_MM # MM = medida media
+ep_caminhada_3_semanas_MU
+ep_caminhada_3_semanas_MM
+ep_caminhada_4_semanas_MU
+ep_caminhada_4_semanas_MM
+ep_caminhada_5_semanas_MU
+ep_caminhada_5_semanas_MM
+
+
+
+# Moderada
+ep_ipaq_moderada_2_semanas_MU <- calcular_erro_padrao(dp_ipaq_moderada_2_semanas, 0.82)
+ep_ipaq_moderada_2_semanas_MM <- calcular_erro_padrao(dp_ipaq_moderada_2_semanas, 0.90)
+ep_ipaq_moderada_3_semanas_MU <- calcular_erro_padrao(dp_ipaq_moderada_3_semanas, 0.68)
+ep_ipaq_moderada_3_semanas_MM <- calcular_erro_padrao(dp_ipaq_moderada_3_semanas, 0.86)
+ep_ipaq_moderada_4_semanas_MU <- calcular_erro_padrao(dp_ipaq_moderada_4_semanas, 0.75)
+ep_ipaq_moderada_4_semanas_MM <- calcular_erro_padrao(dp_ipaq_moderada_4_semanas, 0.92)
+ep_ipaq_moderada_5_semanas_MU <- calcular_erro_padrao(dp_ipaq_moderada_5_semanas, 0.72)
+ep_ipaq_moderada_5_semanas_MM <- calcular_erro_padrao(dp_ipaq_moderada_5_semanas, 0.93)
+
+#exibir
+ep_ipaq_moderada_2_semanas_MU
+ep_ipaq_moderada_2_semanas_MM
+ep_ipaq_moderada_3_semanas_MU
+ep_ipaq_moderada_3_semanas_MM
+ep_ipaq_moderada_4_semanas_MU
+ep_ipaq_moderada_4_semanas_MM
+ep_ipaq_moderada_5_semanas_MU
+ep_ipaq_moderada_5_semanas_MM
+
+
+
+# Vigorosa
+ep_ipaq_vigorosa_2_semanas_MU <- calcular_erro_padrao(dp_ipaq_vigorosa_2_semanas, 0.76)
+ep_ipaq_vigorosa_2_semanas_MM <- calcular_erro_padrao(dp_ipaq_vigorosa_2_semanas, 0.86)
+ep_ipaq_vigorosa_3_semanas_MU <- calcular_erro_padrao(dp_ipaq_vigorosa_3_semanas, 0.70)
+ep_ipaq_vigorosa_3_semanas_MM <- calcular_erro_padrao(dp_ipaq_vigorosa_3_semanas, 0.87)
+ep_ipaq_vigorosa_4_semanas_MU <- calcular_erro_padrao(dp_ipaq_vigorosa_4_semanas, 0.71)
+ep_ipaq_vigorosa_4_semanas_MM <- calcular_erro_padrao(dp_ipaq_vigorosa_4_semanas, 0.91)
+ep_ipaq_vigorosa_5_semanas_MU <- calcular_erro_padrao(dp_ipaq_vigorosa_5_semanas, 0.73)
+ep_ipaq_vigorosa_5_semanas_MM <- calcular_erro_padrao(dp_ipaq_vigorosa_5_semanas, 0.93)
+
+# exibir
+ep_ipaq_vigorosa_2_semanas_MU
+ep_ipaq_vigorosa_2_semanas_MM
+ep_ipaq_vigorosa_3_semanas_MU
+ep_ipaq_vigorosa_3_semanas_MM
+ep_ipaq_vigorosa_4_semanas_MU
+ep_ipaq_vigorosa_4_semanas_MM
+ep_ipaq_vigorosa_5_semanas_MU
+ep_ipaq_vigorosa_5_semanas_MM
+
+``` 
+\
+\
+
+## Fleem System
+``` {r}
+# Intensidade leve
+ep_fleem_leve_2_semanas_MU <- calcular_erro_padrao(dp_leve_2_semanas, 0.73)
+ep_fleem_leve_2_semanas_MM <- calcular_erro_padrao(dp_leve_2_semanas, 0.84)
+ep_fleem_leve_3_semanas_MU <- calcular_erro_padrao(dp_leve_3_semanas, 0.75)
+ep_fleem_leve_3_semanas_MM <- calcular_erro_padrao(dp_leve_3_semanas, 0.90)
+ep_fleem_leve_4_semanas_MU <- calcular_erro_padrao(dp_leve_4_semanas, 0.74)
+ep_fleem_leve_4_semanas_MM <- calcular_erro_padrao(dp_leve_4_semanas, 0.92)
+ep_fleem_leve_5_semanas_MU <- calcular_erro_padrao(dp_leve_5_semanas, 0.75)
+ep_fleem_leve_5_semanas_MM <- calcular_erro_padrao(dp_leve_5_semanas, 0.94)
+
+#exibir
+ep_fleem_leve_2_semanas_MU
+ep_fleem_leve_2_semanas_MM
+ep_fleem_leve_3_semanas_MU
+ep_fleem_leve_3_semanas_MM
+ep_fleem_leve_4_semanas_MU
+ep_fleem_leve_4_semanas_MM
+ep_fleem_leve_5_semanas_MU
+ep_fleem_leve_5_semanas_MM
+
+
+# Intensidade moderada
+ep_fleem_moderada_2_semanas_MU <- calcular_erro_padrao(dp_fleem_moderada_2_semanas, 0.73)
+ep_fleem_moderada_2_semanas_MM <- calcular_erro_padrao(dp_fleem_moderada_2_semanas, 0.84)
+ep_fleem_moderada_3_semanas_MU <- calcular_erro_padrao(dp_fleem_moderada_3_semanas, 0.70)
+ep_fleem_moderada_3_semanas_MM <- calcular_erro_padrao(dp_fleem_moderada_3_semanas, 0.88)
+ep_fleem_moderada_4_semanas_MU <- calcular_erro_padrao(dp_fleem_moderada_4_semanas, 0.72)
+ep_fleem_moderada_4_semanas_MM <- calcular_erro_padrao(dp_fleem_moderada_4_semanas, 0.91)
+ep_fleem_moderada_5_semanas_MU <- calcular_erro_padrao(dp_fleem_moderada_5_semanas, 0.72)
+ep_fleem_moderada_5_semanas_MM <- calcular_erro_padrao(dp_fleem_moderada_5_semanas, 0.93)
+
+#exibir
+ep_fleem_moderada_2_semanas_MU
+ep_fleem_moderada_2_semanas_MM
+ep_fleem_moderada_3_semanas_MU
+ep_fleem_moderada_3_semanas_MM
+ep_fleem_moderada_4_semanas_MU
+ep_fleem_moderada_4_semanas_MM
+ep_fleem_moderada_5_semanas_MU
+ep_fleem_moderada_5_semanas_MM
+
+
+# Intensidade vigorosa
+ep_fleem_vigorosa_2_semanas_MU <- calcular_erro_padrao(dp_fleem_vigorosa_2_semanas, 0.83)
+ep_fleem_vigorosa_2_semanas_MM <- calcular_erro_padrao(dp_fleem_vigorosa_2_semanas, 0.91)
+ep_fleem_vigorosa_3_semanas_MU <- calcular_erro_padrao(dp_fleem_vigorosa_3_semanas, 0.79)
+ep_fleem_vigorosa_3_semanas_MM <- calcular_erro_padrao(dp_fleem_vigorosa_3_semanas, 0.92)
+ep_fleem_vigorosa_4_semanas_MU <- calcular_erro_padrao(dp_fleem_vigorosa_4_semanas, 0.80)
+ep_fleem_vigorosa_4_semanas_MM <- calcular_erro_padrao(dp_fleem_vigorosa_4_semanas, 0.94)
+ep_fleem_vigorosa_5_semanas_MU <- calcular_erro_padrao(dp_fleem_vigorosa_5_semanas, 0.79)
+ep_fleem_vigorosa_5_semanas_MM <- calcular_erro_padrao(dp_fleem_vigorosa_5_semanas, 0.95)
+
+#exibir
+ep_fleem_vigorosa_2_semanas_MU
+ep_fleem_vigorosa_2_semanas_MM
+ep_fleem_vigorosa_3_semanas_MU
+ep_fleem_vigorosa_3_semanas_MM
+ep_fleem_vigorosa_4_semanas_MU
+ep_fleem_vigorosa_4_semanas_MM
+ep_fleem_vigorosa_5_semanas_MU
+ep_fleem_vigorosa_5_semanas_MM
+
+```
+\
+\
+
+Agora, vamos visualizar uma tabela que resume como o ICC e o EPM muda de acordo com o número de semanas de monitoramento
+
+
+``` {r}
+tabela_resumo_confiabilidade <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Confiabilidade teste-reteste/tabela_confiabilidade.xlsx')
+
+tabela_resumo_confiabilidade
+```

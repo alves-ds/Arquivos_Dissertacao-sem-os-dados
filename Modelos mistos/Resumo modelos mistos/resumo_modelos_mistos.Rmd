@@ -1,0 +1,1681 @@
+---
+title: "Resumo modelos mistos"
+author: "Douglas Silva Alves"
+date: "2024-02-08"
+output: 
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    df_print: paged
+    toc: TRUE
+    toc_depth: 2
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+\
+\
+
+# Apresentação
+
+O presente documento foi confeccionado para apresentar de forma resumida os resultados dos modelos mistos, tal como a análise do ajuste dos modelos aos dados, por meio da inspeção de seus resíduos
+
+
+Neste documento estarão presentes somente os modelos que foram selecionados e se encontram descritos na dissertação. Para uma visualização mais ampla de todos os modelos construídos, refira-se à pasta "modelos mistos" do meu github 
+\
+\
+
+# Modelos mistos escolhidos
+
+
+### Caso dê algum conflito para carregar o pacote "Matrix", vamos reinstalá-lo através do comando abaixo:
+```{r message=FALSE, warning=FALSE}
+install.packages("Matrix", repos = "http://cran.us.r-project.org")
+``` 
+
+
+### Carregar bibliotecas necessárias
+```{r message=FALSE, warning=FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(tidyr)
+library(writexl)
+library(kableExtra)
+library(knitr)
+library(lme4)
+library(emmeans)
+
+# Vamos carregar um pacote adicional, para os nossos modelos mistos exibirem os valores de p atrelados aos testes de hipótese
+library(lmerTest)
+
+``` 
+
+Antes de visualizar os modelos escolhidos, vamos dar uma olhada em todos os modelos que foram construídos e seus respectivos índices de ajuste
+
+
+### Para verificar todos os modelos que foram construídos, vamos carregar a tabela na qual eles estão descritos
+``` {r}
+modelos_construidos <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Modelos mistos/modelos_construidos.xlsx")
+
+modelos_construidos
+``` 
+\
+
+Agora vamos carregar os bancos de dados necessários para as análises
+
+### Banco de dados sem remoção de outliers, para os modelos 7, 9 e 11, que foram construídos com os dados obtidos através do FLEEM SYSTEM
+``` {r}
+dados1 <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado.xlsx")
+
+dados1
+``` 
+
+
+
+### Podemos ver que a variável "semana" está definida como uma variável numérica. Portanto, vamos convertê-la em fator
+``` {r}
+dados1$Semana <- as.factor(dados1$Semana)
+```  
+\
+
+Agora vamos conduzir as análises de fato
+
+## Modelo 7 (FLEEM leve)
+``` {r}
+modelo_FLEEM_leve1 <- lmer(Leve_FLEEM ~ Semana + (1 | ID), data = dados1, na.action = na.exclude)
+AIC_modelo_FLEEM_leve1 <- AIC(modelo_FLEEM_leve1) #Extrai o AIC do modelo
+AIC_modelo_FLEEM_leve1
+BIC(modelo_FLEEM_leve1) # Extrai o BIC do modelo
+
+# Vamos calcular o ICC, para ver o quanto os sujeitos explicam a variância do modelo
+
+# Vamos primeiro extrair as variâncias atribuídas aos sujeitos, e a residual
+var_ID_fleem_leve <- VarCorr(modelo_FLEEM_leve1)$ID
+var_residual_fleem_leve <- sigma(modelo_FLEEM_leve1)^2
+
+# Agora vamos calcular o ICC propriamente dito
+ICC_modelo_leve_fleem <- var_ID_fleem_leve/(var_ID_fleem_leve+var_residual_fleem_leve)
+ICC_modelo_leve_fleem[1]
+
+# Vamos verificar um resumo do nosso modelo, com a função summary()
+summary(modelo_FLEEM_leve1)
+
+# Esse pacote não exibe o efeito principal do nosso modelo, portanto, teremos que extrair isso usando a função anova()
+anova(modelo_FLEEM_leve1)
+
+# As linhas acima não são suficientes para termos acesso à um teste posthoc, portanto, realizaremos isso de outra maneira
+
+# Primeiro, vamos extrair as médias estimadas e realizar comparações
+medias_emmeans_fleem_leve <- emmeans(modelo_FLEEM_leve1, ~ Semana)
+
+# Agora, vamos comparar todas as médias entre si
+comparacoes_fleem_leve <- pairs(medias_emmeans_fleem_leve)
+
+# Agora vamos exibir as comparações
+print(comparacoes_fleem_leve)
+``` 
+\
+
+Agora, vamos verificar o ajuste deste modelo quando comparado à um modelo equivalente, porém com uma distribuição de probabilidade Gamma. Para isso, utilizaremos gráficos construídos em Python, portanto, precisaremos carregar um pacote para permitir que os scripts em Python sejam "executados" no R markdown
+
+
+``` {r}
+library("reticulate")
+```
+
+
+### Análise do ajuste do modelo por meio da inspeção da distribuição dos resíduos 
+
+#### Immportar bibliotecas necessárias
+``` {python}
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy import stats
+import statsmodels.api as sm
+from scipy.special import ndtri
+import matplotlib.lines as mlines
+import matplotlib.transforms as mtransforms
+import scipy
+from distfit import distfit
+import pylab as py
+from scipy.stats import gamma
+import math
+
+```
+
+#### Importar banco de dados com os resíduos do modelo
+``` {python}
+dados = pd.read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Modelos mistos/dados_com_residuos.xlsx')
+
+
+#### Vamos remover os dados faltantes
+dados = dados.dropna()
+``` 
+
+
+Vamos criar objetos com os valores preditos e os resíduos dos modelos com distribuição normal e Gamma
+
+
+#### Criar objetos com os valores preditos e os resíduos
+``` {python}
+resid_leve_linear = list(dados['Residuo_leve_1'].values)
+preditos_leve_linear = list(dados['Predito_leve_1'].values)
+
+#### Modelo com distribuição Gamma
+resid_leve_gamma = list(dados['Residuo_leve_2'].values)
+preditos_leve_gamma = list(dados['Predito_leve_2'].values)
+``` 
+
+Agora vamos converter os dados em um dataframe e calcular percentis
+
+
+
+``` {python}
+# Modelo com distribuição linear
+leve_fleem_linear_resid = pd.DataFrame(resid_leve_linear)
+leve_fleem_linear_predito = pd.DataFrame(preditos_leve_linear)
+
+
+# Modelo com distribuição Gamma    
+leve_fleem_gamma_resid = pd.DataFrame(resid_leve_gamma)
+leve_fleem_gamma_predito = pd.DataFrame(preditos_leve_gamma)
+```  
+
+#### Calcular percentis
+``` {python}
+# Modelo com distribuição linear
+df_leve_linear_resid = leve_fleem_linear_resid.sort_values(by=[0], ascending=True).reset_index()
+df_leve_linear_resid['count'] = df_leve_linear_resid.index + 1
+n_rows = df_leve_linear_resid.shape[0]
+df_leve_linear_resid['percentil_area'] = (df_leve_linear_resid['count'])/n_rows
+df_leve_linear_resid['percentil_teorico'] = ndtri(df_leve_linear_resid['percentil_area'])
+df_leve_linear_resid['percentil_atual'] = (df_leve_linear_resid[0] - df_leve_linear_resid[0].mean())/df_leve_linear_resid[0].std(ddof=0)
+
+# Modelo com distribuição Gamma   
+df_leve_gamma_resid = leve_fleem_gamma_resid.sort_values(by=[0], ascending=True).reset_index()
+df_leve_gamma_resid['count'] = df_leve_gamma_resid.index + 1
+n_rows = df_leve_gamma_resid.shape[0]
+df_leve_gamma_resid['percentil_area'] = (df_leve_linear_resid['count'])/n_rows
+df_leve_gamma_resid['percentil_teorico'] = ndtri(df_leve_gamma_resid['percentil_area'])
+df_leve_gamma_resid['percentil_atual'] = (df_leve_gamma_resid[0] - df_leve_gamma_resid[0].mean())/df_leve_gamma_resid[0].std(ddof=0)
+``` 
+
+Agora vamos construir subplots para compararmos os ajustes dos modelos com distribuição normal e Gamma
+
+#### Construir subplot para os dados de intensidade leve do FLEEM
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+
+pp = sm.ProbPlot(df_leve_linear_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax1)
+sm.qqline(qq.axes[0], line='45')
+ax1.set_ylabel('Quantis observados')
+ax1.set_xlabel('Quantis teoricos (normal)')
+ax2.scatter(leve_fleem_linear_predito, leve_fleem_linear_resid, s=3, c='black')
+ax2.set_ylabel('Residuo do modelo')
+ax2.set_xlabel('Predito pelo modelo')
+
+pp = sm.ProbPlot(df_leve_gamma_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Quantis observados')
+ax3.set_xlabel('Quantis teoricos (normal)')
+ax4.scatter(leve_fleem_gamma_predito, leve_fleem_gamma_resid, s=3, c='black')
+ax4.set_ylabel('Residuo do modelo')
+ax4.set_xlabel('Predito pelo modelo')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/An?lise dos residuos dos modelos mistos/FLEEM/residuo_leve_fleem.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+
+A primeira linha apresenta um modelo com distribuição normal, enquanto a segunda linha exibe um modelo com distribuição Gamma. Com base nisso, podemos concluir que o modelo com distribuição normal (cujos resultados estão expressos acima) foi o que melhor se ajustou aos dados, e consequentemente, foi o escolhido para ser interpretado
+\
+\
+
+## Modelo 9 (FLEEM moderada)
+``` {r}
+modelo_FLEEM_moderada1 <- lmer(Moderada_FLEEM_10 ~ Semana + (1 | ID), data = dados1, na.action = na.exclude)
+AIC_modelo_FLEEM_moderada1 <- AIC(modelo_FLEEM_moderada1) #Extrai o AIC do modelo
+AIC_modelo_FLEEM_moderada1
+BIC(modelo_FLEEM_moderada1) # Extrai o BIC do modelo
+
+
+# Vamos calcular o ICC, para ver o quanto os sujeitos explicam a variância do modelo
+
+# Vamos primeiro extrair as variâncias atribuídas aos sujeitos, e a residual
+var_ID_fleem_moderada <- VarCorr(modelo_FLEEM_moderada1)$ID
+var_residual_fleem_moderada <- sigma(modelo_FLEEM_moderada1)^2
+
+# Agora vamos calcular o ICC propriamente dito
+ICC_modelo_moderada_fleem <- var_ID_fleem_moderada/(var_ID_fleem_moderada+var_residual_fleem_moderada)
+ICC_modelo_moderada_fleem[1]
+
+# Vamos verificar um resumo do nosso modelo, com a função summary()
+summary(modelo_FLEEM_moderada1)
+
+# Esse pacote não exibe o efeito principal do nosso modelo, portanto, teremos que extrair isso usando a função anova()
+anova(modelo_FLEEM_moderada1)
+
+# As linhas acima não são suficientes para termos acesso à um teste posthoc, portanto, realizaremos isso de outra maneira
+
+# Primeiro, vamos extrair as médias estimadas e realizar comparações
+medias_emmeans_fleem_moderada <- emmeans(modelo_FLEEM_moderada1, ~ Semana)
+
+# Agora, vamos comparar todas as médias entre si
+comparacoes_fleem_moderada <- pairs(medias_emmeans_fleem_moderada)
+
+# Agora vamos exibir as comparações
+print(comparacoes_fleem_moderada)
+```
+\
+
+Agora, vamos verificar o ajuste deste modelo quando comparado à um modelo equivalente, porém com uma distribuição de probabilidade Gamma
+\
+
+Vamos criar objetos com os valores preditos e os resíduos dos modelos com distribuição normal e Gamma
+\
+``` {python}
+# Modelo com distribuição linear
+resid_moderada_linear = list(dados['Residuo_fmod_1'].values)
+preditos_moderada_linear = list(dados['Predito_fmod_1'].values)
+
+# Modelo com distribuição Gamma   
+resid_moderada_gamma = list(dados['Residuo_fmod_2'].values)
+preditos_moderada_gamma = list(dados['Predito_fmod_1'].values)
+``` 
+
+
+Agora vamos converter os dados em um dataframe e calcular percentis
+
+
+``` {python}
+# Modelo com distribuição linear
+moderada_fleem_linear_resid = pd.DataFrame(resid_moderada_linear)
+moderada_fleem_linear_predito = pd.DataFrame(preditos_moderada_linear)
+
+# Modelo com distribuição Gamma    
+moderada_fleem_gamma_resid = pd.DataFrame(resid_moderada_gamma)
+moderada_fleem_gamma_predito = pd.DataFrame(preditos_moderada_gamma)
+``` 
+
+
+#### Calcular percentis
+``` {python}
+# Modelo com distribuição linear
+df_moderada_linear_resid = moderada_fleem_linear_resid.sort_values(by=[0], ascending=True).reset_index()
+df_moderada_linear_resid['count'] = df_moderada_linear_resid.index + 1
+n_rows = df_moderada_linear_resid.shape[0]
+df_moderada_linear_resid['percentil_area'] = (df_moderada_linear_resid['count'])/n_rows
+df_moderada_linear_resid['percentil_teorico'] = ndtri(df_moderada_linear_resid['percentil_area'])
+df_moderada_linear_resid['percentil_atual'] = (df_moderada_linear_resid[0] - df_moderada_linear_resid[0].mean())/df_moderada_linear_resid[0].std(ddof=0)
+
+# Modelo com distribuição Gamma 
+df_moderada_gamma_resid = moderada_fleem_gamma_resid.sort_values(by=[0], ascending=True).reset_index()
+df_moderada_gamma_resid['count'] = df_moderada_gamma_resid.index + 1
+n_rows = df_moderada_gamma_resid.shape[0]
+df_moderada_gamma_resid['percentil_area'] = (df_moderada_linear_resid['count'])/n_rows
+df_moderada_gamma_resid['percentil_teorico'] = ndtri(df_moderada_gamma_resid['percentil_area'])
+df_moderada_gamma_resid['percentil_atual'] = (df_moderada_gamma_resid[0] - df_moderada_gamma_resid[0].mean())/df_moderada_gamma_resid[0].std(ddof=0)
+``` 
+
+
+Agora vamos construir subplots para compararmos os ajustes dos modelos com distribuição normal e Gamma
+
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+
+pp = sm.ProbPlot(df_moderada_linear_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax1)
+sm.qqline(qq.axes[0], line='45')
+ax1.set_ylabel('Quantis observados')
+ax1.set_xlabel('Quantis teoricos (normal)')
+ax2.scatter(moderada_fleem_linear_predito, moderada_fleem_linear_resid, s=3, c='black')
+ax2.set_ylabel('Residuo do modelo')
+ax2.set_xlabel('Predito pelo modelo')
+
+pp = sm.ProbPlot(df_moderada_gamma_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Quantis observados')
+ax3.set_xlabel('Quantis teoricos (normal)')
+ax4.scatter(moderada_fleem_gamma_predito, moderada_fleem_gamma_resid, s=3, c='black')
+ax4.set_ylabel('Residuo do modelo')
+ax4.set_xlabel('Predito pelo modelo')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/An?lise dos residuos dos modelos mistos/FLEEM/residuo_moderada_fleem.png', bbox_inches='tight', dpi = 300)
+plt.show()
+```  
+\
+
+A primeira linha apresenta um modelo com distribuição normal, enquanto a segunda linha exibe um modelo com distribuição Gamma. Com base nisso, podemos concluir que o modelo com distribuição normal (cujos resultados estão expressos acima) foi o que melhor se ajustou aos dados, e consequentemente, foi o escolhido para ser interpretado
+\
+\
+
+## Modelo 11 (FLEEM vigorosa)
+``` {r}
+modelo_FLEEM_vigorosa1 <- lmer(Vigorosa_FLEEM_10 ~ Semana + (1| ID), data = dados1, na.action = na.exclude)
+AIC_modelo_FLEEM_vigorosa1 <- AIC(modelo_FLEEM_vigorosa1) # Extrai o AIC do modelo
+AIC_modelo_FLEEM_vigorosa1
+BIC(modelo_FLEEM_vigorosa1) # Extrai o BIC do modelo
+
+
+# Vamos calcular o ICC, para ver o quanto os sujeitos explicam a variância do modelo
+
+# Vamos primeiro extrair as variâncias atribuídas aos sujeitos, e a residual
+var_ID_fleem_vigorosa <- VarCorr(modelo_FLEEM_vigorosa1)$ID
+var_residual_fleem_vigorosa <- sigma(modelo_FLEEM_vigorosa1)^2
+
+# Agora vamos calcular o ICC propriamente dito
+ICC_modelo_vigorosa_fleem <- var_ID_fleem_vigorosa/(var_ID_fleem_vigorosa+var_residual_fleem_vigorosa)
+ICC_modelo_vigorosa_fleem[1]
+
+# Vamos verificar um resumo do nosso modelo, com a função summary()
+summary(modelo_FLEEM_vigorosa1)
+
+# Esse pacote não exibe o efeito principal do nosso modelo, portanto, teremos que extrair isso usando a função anova()
+anova(modelo_FLEEM_vigorosa1)
+
+# As linhas acima não são suficientes para termos acesso à um teste posthoc, portanto, realizaremos isso de outra maneira
+
+# Primeiro, vamos extrair as médias estimadas e realizar comparações
+medias_emmeans_fleem_vigorosa <- emmeans(modelo_FLEEM_vigorosa1, ~ Semana)
+
+# Agora, vamos comparar todas as médias entre si
+comparacoes_fleem_vigorosa <- pairs(medias_emmeans_fleem_vigorosa)
+
+# Agora vamos exibir as comparações
+print(comparacoes_fleem_vigorosa)
+
+```
+\
+
+Agora, vamos verificar o ajuste deste modelo quando comparado à um modelo equivalente, porém com uma distribuição de probabilidade Gamma
+\
+
+Vamos criar objetos com os valores preditos e os resíduos dos modelos com distribuição normal e Gamma
+\
+``` {python}
+# Modelo com distribuição linear
+resid_vigorosa_linear = list(dados['Residuo_fvig_1'].values)
+preditos_vigorosa_linear = list(dados['Predito_fvig_1'].values)
+
+# Modelo com distribuição Gamma    
+resid_vigorosa_gamma = list(dados['Residuo_fvig_2'].values)
+preditos_vigorosa_gamma = list(dados['Predito_fvig_2'].values)
+
+```
+
+Agora vamos converter os dados em um dataframe e calcular percentis
+
+``` {python}
+# Modelo com distribuição linear
+vigorosa_fleem_linear_resid = pd.DataFrame(resid_vigorosa_linear)
+vigorosa_fleem_linear_predito = pd.DataFrame(preditos_vigorosa_linear)
+
+# Modelo com distribuição Gamma      
+vigorosa_fleem_gamma_resid = pd.DataFrame(resid_vigorosa_gamma)
+vigorosa_fleem_gamma_predito = pd.DataFrame(preditos_vigorosa_gamma)
+
+```  
+
+
+#### Calcular percentis
+``` {python}
+# Modelo com distribuição linear
+df_vigorosa_linear_resid = vigorosa_fleem_linear_resid.sort_values(by=[0], ascending=True).reset_index()
+df_vigorosa_linear_resid['count'] = df_vigorosa_linear_resid.index + 1
+n_rows = df_vigorosa_linear_resid.shape[0]
+df_vigorosa_linear_resid['percentil_area'] = (df_vigorosa_linear_resid['count'])/n_rows
+df_vigorosa_linear_resid['percentil_teorico'] = ndtri(df_vigorosa_linear_resid['percentil_area'])
+df_vigorosa_linear_resid['percentil_atual'] = (df_vigorosa_linear_resid[0] - df_vigorosa_linear_resid[0].mean())/df_vigorosa_linear_resid[0].std(ddof=0)
+
+# Modelo com distribuição Gamma 
+df_vigorosa_gamma_resid = vigorosa_fleem_gamma_resid.sort_values(by=[0], ascending=True).reset_index()
+df_vigorosa_gamma_resid['count'] = df_vigorosa_gamma_resid.index + 1
+n_rows = df_vigorosa_gamma_resid.shape[0]
+df_vigorosa_gamma_resid['percentil_area'] = (df_vigorosa_linear_resid['count'])/n_rows
+df_vigorosa_gamma_resid['percentil_teorico'] = ndtri(df_vigorosa_gamma_resid['percentil_area'])
+df_vigorosa_gamma_resid['percentil_atual'] = (df_vigorosa_gamma_resid[0] - df_vigorosa_gamma_resid[0].mean())/df_vigorosa_gamma_resid[0].std(ddof=0)
+``` 
+
+Agora vamos construir subplots para compararmos os ajustes dos modelos com distribuição normal e Gamma
+
+
+``` {python}
+fig, ((ax1,ax2), (ax3,ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+
+pp = sm.ProbPlot(df_vigorosa_linear_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax1)
+sm.qqline(qq.axes[0], line='45')
+ax1.set_ylabel('Quantis observados')
+ax1.set_xlabel('Quantis teoricos (normal)')
+ax2.scatter(vigorosa_fleem_linear_predito, vigorosa_fleem_linear_resid, s=3, c='black')
+ax2.set_ylabel('residuo do modelo')
+ax2.set_xlabel('Predito pelo modelo')
+
+pp = sm.ProbPlot(df_vigorosa_gamma_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Quantis observados')
+ax3.set_xlabel('Quantis teoricos (normal)')
+ax4.scatter(vigorosa_fleem_gamma_predito, vigorosa_fleem_gamma_resid, s=3, c='black')
+ax4.set_ylabel('residuo do modelo')
+ax4.set_xlabel('Predito pelo modelo')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/An?lise dos residuos dos modelos mistos/FLEEM/residuo_vigorosa_fleem.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+
+Com base no gráfico acima, pode-se observar que, o resultado obtido para a última iteração do modelo com distribuição Gamma (que não convergiu) apresentou resíduos mais aderentes à uma distribuição normal. Entretanto, este modelo não convergiu, sendo assim escolhido o modelo com distribuição normal para ser analisado (cujos resultados encontram-se acima), adotando-se um critério de parsimonia 
+\
+\
+
+### Agora vamos trabalhar com o banco de dados para fazer as análises dos modelos 5, 18 e 23, que foram baseados em dados do IPAQ com a remoção de possíveis outliers
+``` {r}
+dados2 <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sexto processamento/banco_dados_reestruturado_sem_outliers.xlsx")
+
+dados2
+``` 
+
+### Podemos ver que a variável "semana" está definida como uma variável numérica. Portanto, vamos convertê-la em fator
+``` {r}
+dados2$Semana <- as.factor(dados2$Semana)
+```
+\
+\
+
+## Modelo 5 (Caminhada IPAQ)
+``` {r}
+modelo_caminhada_ipaq <- lmer(Caminhada_IPAQ_10 ~ Semana + (1 | ID), data = dados2, na.action = na.exclude)
+AIC_modelo_caminhada_ipaq <- AIC(modelo_caminhada_ipaq) # Extrai o AIC do modelo
+AIC_modelo_caminhada_ipaq
+BIC(modelo_caminhada_ipaq) # Extrai o BIC do modelo
+
+
+# Vamos calcular o ICC, para ver o quanto os sujeitos explicam a variância do modelo
+
+# Vamos primeiro extrair as variâncias atribuídas aos sujeitos, e a residual
+var_ID_ipaq_caminhada <- VarCorr(modelo_caminhada_ipaq)$ID
+var_residual_ipaq_caminhada <- sigma(modelo_caminhada_ipaq)^2
+
+# Agora vamos calcular o ICC propriamente dito
+ICC_modelo_ipaq_caminhada <- var_ID_ipaq_caminhada/(var_ID_ipaq_caminhada+var_residual_ipaq_caminhada)
+ICC_modelo_ipaq_caminhada[1]
+
+# Vamos verificar um resumo do nosso modelo, com a função summary()
+summary(modelo_caminhada_ipaq)
+
+# Esse pacote não exibe o efeito principal do nosso modelo, portanto, teremos que extrair isso usando a função anova()
+anova(modelo_caminhada_ipaq)
+
+# As linhas acima não são suficientes para termos acesso à um teste posthoc, portanto, realizaremos isso de outra maneira
+
+# Primeiro, vamos extrair as médias estimadas e realizar comparações
+medias_emmeans_ipaq_caminhada <- emmeans(modelo_caminhada_ipaq, ~ Semana)
+
+# Agora, vamos comparar todas as médias entre si
+comparacoes_ipaq_caminhada <- pairs(medias_emmeans_ipaq_caminhada)
+
+# Agora vamos exibir as comparações
+print(comparacoes_ipaq_caminhada)
+
+```
+\
+
+Agora, vamos verificar o ajuste deste modelo quando comparado à um modelo equivalente, porém com uma distribuição de probabilidade Gamma
+\
+
+
+### Importar dados com resíduos do IPAQ
+``` {python}
+dados_sem_outlier2 = pd.read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Modelos mistos/dados__sem_outliers_z_score_com_residuos.xlsx')
+
+dados_sem_outlier2
+
+```
+
+
+Vamos criar objetos com os valores preditos e os resíduos dos modelos com distribuição normal e Gamma
+\
+``` {python}
+# Modelo com distribuicao linear 
+resid_caminhada_linear = list(dados_sem_outlier2['Residuo_cam__SO_1'].values)
+preditos_caminhada_linear = list(dados_sem_outlier2['Predito_cam__SO_1'].values)
+
+# Modelo com distribuicao gamma
+# NAO CONVERGIU
+``` 
+
+
+Agora vamos salvar os dados em dataframes e calcular os percentis
+``` {python}
+# Modelo com distribuicao linear
+caminhada_ipaq_linear_resid = pd.DataFrame(resid_caminhada_linear).dropna()
+caminhada_ipaq_linear_predito = pd.DataFrame(preditos_caminhada_linear).dropna()
+``` 
+
+
+### Calcular percentis
+``` {python}
+# Modelo com distribuicao linear
+df_caminhada_linear_resid = caminhada_ipaq_linear_resid.sort_values(by=[0], ascending=True).reset_index()
+df_caminhada_linear_resid['count'] = df_caminhada_linear_resid.index + 1
+n_rows = df_caminhada_linear_resid.shape[0]
+df_caminhada_linear_resid['percentil_area'] = (df_caminhada_linear_resid['count'])/n_rows
+df_caminhada_linear_resid['percentil_teorico'] = ndtri(df_caminhada_linear_resid['percentil_area'])
+df_caminhada_linear_resid['percentil_atual'] = (df_caminhada_linear_resid[0] - df_caminhada_linear_resid[0].mean())/df_caminhada_linear_resid[0].std(ddof=0)
+
+```
+\
+
+Agora vamos construir os nossos subplots para inspecionarmos a distribuição dos resíduos
+``` {python}
+fig, (ax1,ax2) = plt.subplots(nrows = 1, ncols = 2, figsize=(6,3), sharey=False)
+
+
+pp = sm.ProbPlot(df_caminhada_linear_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax1)
+sm.qqline(qq.axes[0], line='45')
+ax1.set_ylabel('Quantis observados')
+ax1.set_xlabel('Quantis teoricos (normal)')
+ax2.scatter(caminhada_ipaq_linear_predito, caminhada_ipaq_linear_resid, s=3, c='black')
+ax2.set_ylabel('residuo do modelo')
+ax2.set_xlabel('Predito pelo modelo')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/An?lise dos residuos dos modelos mistos/IPAQ/Outliers removidos z-score/residuo_modelo_caminhada_SO_z_ipaq.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+
+A partir do gráfico acima, podemos analisar a distribuição dos resíduos do modelo com distribuição normal. Não é expresso o ajuste do modelo com distribuição Gamma, pois ele não convergiu. Sendo assim, o modelo escolhido para ser interpretado foi o com distribuição normal
+\
+\
+
+## Modelo 18 (Moderada IPAQ)
+``` {r}
+modelo_moderada_ipaq <- glmer(Moderada_IPAQ_10 ~ Semana + (1 | ID), data = dados2, family = Gamma(link="identity"), na.action = na.exclude)
+AIC_modelo_moderada_ipaq <- AIC(modelo_moderada_ipaq)
+AIC_modelo_moderada_ipaq
+BIC(modelo_moderada_ipaq)
+
+
+# Vamos calcular o ICC, para ver o quanto os sujeitos explicam a variância do modelo
+
+# Vamos primeiro extrair as variâncias atribuídas aos sujeitos, e a residual
+var_ID_ipaq_moderada <- VarCorr(modelo_moderada_ipaq)$ID
+var_residual_ipaq_moderada <- sigma(modelo_moderada_ipaq)^2
+
+# Agora vamos calcular o ICC propriamente dito
+ICC_modelo_ipaq_moderada <- var_ID_ipaq_moderada/(var_ID_ipaq_moderada+var_residual_ipaq_moderada)
+ICC_modelo_ipaq_caminhada[1]
+
+# Vamos verificar um resumo do nosso modelo, com a função summary()
+summary(modelo_moderada_ipaq)
+
+# Esse pacote não exibe o efeito principal do nosso modelo, portanto, teremos que extrair isso usando a função anova()
+anova(modelo_moderada_ipaq)
+
+# As linhas acima não são suficientes para termos acesso à um teste posthoc, portanto, realizaremos isso de outra maneira
+# Primeiro, vamos extrair as médias estimadas e realizar comparações
+medias_emmeans_ipaq_moderada <- emmeans(modelo_moderada_ipaq, ~ Semana)
+
+# Agora, vamos comparar todas as médias entre si
+comparacoes_ipaq_moderada <- pairs(medias_emmeans_ipaq_moderada)
+
+# Agora vamos exibir as comparações
+print(comparacoes_ipaq_moderada)
+
+``` 
+\
+
+Agora, vamos verificar o ajuste deste modelo quando comparado à um modelo equivalente, porém com uma distribuição de probabilidade Gamma
+\
+Vamos criar objetos com os valores preditos e os resíduos dos modelos com distribuição normal e Gamma
+\
+
+``` {python}
+# Modelo com distribuicao linear 
+resid_moderada_linear = list(dados_sem_outlier2['Residuo_mod_SO_1'].values)
+preditos_moderada_linear = list(dados_sem_outlier2['Predito_mod__SO_1'].values)
+
+
+# Modelo com distribuicao gamma 
+resid_moderada_gamma = list(dados_sem_outlier2['Residuo_mod_SO_2'].values)
+preditos_moderada_gamma = list(dados_sem_outlier2['Predito_mod__SO_2'].values)
+
+```
+
+
+Agora vamos salvar os dados em dataframes e calcular os percentis
+
+``` {python}
+# Modelo com distribuicao linear
+moderada_ipaq_linear_resid = pd.DataFrame(resid_moderada_linear).dropna()
+moderada_ipaq_linear_predito = pd.DataFrame(preditos_moderada_linear).dropna()
+
+
+# Modelo com distribuicao Gamma
+moderada_ipaq_gamma_resid = pd.DataFrame(resid_moderada_gamma).dropna()
+moderada_ipaq_gamma_predito = pd.DataFrame(preditos_moderada_gamma).dropna()
+```
+
+
+### Calcular percentis
+``` {python}
+# Modelo com distribuicao linear
+df_moderada_linear_resid = moderada_ipaq_linear_resid.sort_values(by=[0], ascending=True).reset_index()
+df_moderada_linear_resid['count'] = df_moderada_linear_resid.index + 1
+n_rows = df_moderada_linear_resid.shape[0]
+df_moderada_linear_resid['percentil_area'] = (df_moderada_linear_resid['count'])/n_rows
+df_moderada_linear_resid['percentil_teorico'] = ndtri(df_moderada_linear_resid['percentil_area'])
+df_moderada_linear_resid['percentil_atual'] = (df_moderada_linear_resid[0] - df_moderada_linear_resid[0].mean())/df_moderada_linear_resid[0].std(ddof=0)
+
+
+# Modelo com distribuicao Gamma
+df_moderada_gamma_resid = moderada_ipaq_gamma_resid.sort_values(by=[0], ascending=True).reset_index()
+df_moderada_gamma_resid['count'] = df_moderada_gamma_resid.index + 1
+n_rows = df_moderada_gamma_resid.shape[0]
+df_moderada_gamma_resid['percentil_area'] = (df_moderada_gamma_resid['count'])/n_rows
+df_moderada_gamma_resid['percentil_teorico'] = ndtri(df_moderada_gamma_resid['percentil_area'])
+df_moderada_gamma_resid['percentil_atual'] = (df_moderada_gamma_resid[0] - df_moderada_gamma_resid[0].mean())/df_moderada_gamma_resid[0].std(ddof=0)
+``` 
+
+
+Agora vamos construir os nossos subplots para inspecionarmos a distribuição dos resíduos
+
+``` {python}
+fig, ((ax1,ax2), (ax3, ax4)) = plt.subplots(nrows = 2, ncols = 2, figsize=(8,5), sharey=False)
+
+
+pp = sm.ProbPlot(df_moderada_linear_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax1)
+sm.qqline(qq.axes[0], line='45')
+ax1.set_ylabel('Quantis observados')
+ax1.set_xlabel('Quantis teoricos (normal)')
+ax2.scatter(moderada_ipaq_linear_predito, moderada_ipaq_linear_resid, s=3, c='black')
+ax2.set_ylabel('residuo do modelo')
+ax2.set_xlabel('Predito pelo modelo')
+
+
+pp = sm.ProbPlot(df_moderada_gamma_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax3)
+sm.qqline(qq.axes[2], line='45')
+ax3.set_ylabel('Quantis observados')
+ax3.set_xlabel('Quantis teoricos (normal)')
+ax4.scatter(moderada_ipaq_gamma_predito, moderada_ipaq_gamma_resid, s=3, c='black')
+ax4.set_ylabel('residuo do modelo')
+ax4.set_xlabel('Predito pelo modelo')
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/An?lise dos residuos dos modelos mistos/IPAQ/Outliers removidos z-score/residuo_modelo_moderada_SO_z_ipaq.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+
+Com base no gráfico acima, podemos observar que o modelo com distribuição Gamma se adequou melhor aos dados, portanto, foi o escolhido para ser interpretado
+\
+\
+
+## Modelo 23 (Vigorosa IPAQ)
+``` {r}
+modelo_vigorosa_ipaq <- lmer(Vigorosa_IPAQ_10 ~ Semana + (1 | ID), data = dados2, na.action = na.exclude)
+AIC_modelo_vigorosa_ipaq <- AIC(modelo_vigorosa_ipaq) #Extrai o AIC do modelo
+AIC_modelo_vigorosa_ipaq
+BIC(modelo_vigorosa_ipaq)
+
+
+# Vamos calcular o ICC, para ver o quanto os sujeitos explicam a variância do modelo
+
+# Vamos primeiro extrair as variâncias atribuídas aos sujeitos, e a residual
+var_ID_ipaq_vigorosa <- VarCorr(modelo_vigorosa_ipaq)$ID
+var_residual_ipaq_vigorosa <- sigma(modelo_vigorosa_ipaq)^2
+
+# Agora vamos calcular o ICC propriamente dito
+ICC_modelo_ipaq_vigorosa <- var_ID_ipaq_vigorosa/(var_ID_ipaq_vigorosa+var_residual_ipaq_vigorosa)
+ICC_modelo_ipaq_vigorosa[1]
+
+# Vamos verificar um resumo do nosso modelo, com a função summary()
+summary(modelo_vigorosa_ipaq)
+
+# Esse pacote não exibe o efeito principal do nosso modelo, portanto, teremos que extrair isso usando a função anova()
+anova(modelo_vigorosa_ipaq)
+
+# As linhas acima não são suficientes para termos acesso à um teste posthoc, portanto, realizaremos isso de outra maneira
+
+# Primeiro, vamos extrair as médias estimadas e realizar comparações
+medias_emmeans_ipaq_vigorosa <- emmeans(modelo_vigorosa_ipaq, ~ Semana)
+
+# Agora, vamos comparar todas as médias entre si
+comparacoes_ipaq_vigorosa <- pairs(medias_emmeans_ipaq_vigorosa)
+
+# Agora vamos exibir as comparações
+print(comparacoes_ipaq_vigorosa)
+
+```
+\
+
+Agora, vamos verificar o ajuste deste modelo quando comparado à um modelo equivalente, porém com uma distribuição de probabilidade Gamma
+\
+Vamos criar objetos com os valores preditos e os resíduos dos modelos com distribuição normal e Gamma
+\
+``` {python}
+# Modelo com distribuicao linear 
+resid_vigorosa_linear = list(dados_sem_outlier2['Residuo_vig_SO_1'].values)
+preditos_vigorosa_linear = list(dados_sem_outlier2['Predito_vig_SO_1'].values)
+
+
+# Modelo com distribuicao gamma   
+# NAO CONVERGIU
+```
+
+
+Agora vamos salvar os dados em dataframes e calcular os percentis
+
+
+``` {python}
+# Modelo com distribuicao linear
+vigorosa_ipaq_linear_resid = pd.DataFrame(resid_vigorosa_linear).dropna()
+vigorosa_ipaq_linear_predito = pd.DataFrame(preditos_vigorosa_linear).dropna()
+``` 
+
+
+### Calcular percentis
+``` {python}
+# Modelo com distribuicao linear
+df_vigorosa_linear_resid = vigorosa_ipaq_linear_resid.sort_values(by=[0], ascending=True).reset_index()
+df_vigorosa_linear_resid['count'] = df_vigorosa_linear_resid.index + 1
+n_rows = df_vigorosa_linear_resid.shape[0]
+df_vigorosa_linear_resid['percentil_area'] = (df_vigorosa_linear_resid['count'])/n_rows
+df_vigorosa_linear_resid['percentil_teorico'] = ndtri(df_vigorosa_linear_resid['percentil_area'])
+df_vigorosa_linear_resid['percentil_atual'] = (df_vigorosa_linear_resid[0] - df_vigorosa_linear_resid[0].mean())/df_vigorosa_linear_resid[0].std(ddof=0)
+``` 
+
+
+Agora vamos construir os nossos subplots para inspecionarmos a distribuição dos resíduos
+``` {python}
+fig, (ax1,ax2) = plt.subplots(nrows = 1, ncols = 2, figsize=(6,3), sharey=False)
+
+
+pp = sm.ProbPlot(df_vigorosa_linear_resid.percentil_atual, dist=scipy.stats.distributions.norm, fit=True)
+qq = pp.qqplot(marker='.', markerfacecolor='k', markeredgecolor='k', markersize=3, ax=ax1)
+sm.qqline(qq.axes[0], line='45')
+ax1.set_ylabel('Quantis observados')
+ax1.set_xlabel('Quantis teoricos (normal)')
+ax2.scatter(vigorosa_ipaq_linear_predito, vigorosa_ipaq_linear_resid, s=3, c='black')
+ax2.set_ylabel('residuo do modelo')
+ax2.set_xlabel('Predito pelo modelo')
+
+
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/An?lise dos residuos dos modelos mistos/IPAQ/Outliers removidos z-score/residuo_modelo_vigorosa_SO_z_ipaq.png', bbox_inches='tight', dpi = 300)
+plt.show()
+``` 
+\
+\
+
+Agora, vamos gerar gráficos gerais para verificarmos o comportamento dos dados por meio de esperança e intervalo de confiança, assim como o comportamento de cada um dos indivíduos ao longo das 5 semanas de monitoramento
+\
+\
+
+# Gerar gráficos gerais
+
+## FLEEM System
+
+Para a construção dos gráficos, foram utilizados os resultados (esperança e IC) dos modelos apresentados acima
+
+``` {python}
+# Importar bibliotecas necesarias 
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+from matplotlib.font_manager import FontProperties
+
+
+#Importar banco de dados
+dados = pd.read_csv('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Confiabilidade teste-reteste/Coeficiente de correlacao intraclasse/FLEEM/dados_fleem_wide.csv')
+
+# Definir os valores do eixo X dos graficos
+semanas = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5']
+
+
+# Vamos separar os dados por intensidade
+
+#Leve
+dados_gerais_af_leve_fleem = pd.DataFrame(dados['Leve_FLEEM.1'])
+dados_gerais_af_leve_fleem['Leve_FLEEM.2'] = dados['Leve_FLEEM.2']
+dados_gerais_af_leve_fleem['Leve_FLEEM.3'] = dados['Leve_FLEEM.3']
+dados_gerais_af_leve_fleem['Leve_FLEEM.4'] = dados['Leve_FLEEM.4']
+dados_gerais_af_leve_fleem['Leve_FLEEM.5'] = dados['Leve_FLEEM.5']
+
+
+#Moderada
+dados_gerais_af_moderada_fleem = pd.DataFrame(dados['Moderada_FLEEM_10.1'])
+dados_gerais_af_moderada_fleem['Moderada_FLEEM_10.2'] = dados['Moderada_FLEEM_10.2']
+dados_gerais_af_moderada_fleem['Moderada_FLEEM_10.3'] = dados['Moderada_FLEEM_10.3']
+dados_gerais_af_moderada_fleem['Moderada_FLEEM_10.4'] = dados['Moderada_FLEEM_10.4']
+dados_gerais_af_moderada_fleem['Moderada_FLEEM_10.5'] = dados['Moderada_FLEEM_10.5']
+
+
+#Vigorosa
+dados_gerais_af_vigorosa_fleem = pd.DataFrame(dados['Vigorosa_FLEEM_10.1'])
+dados_gerais_af_vigorosa_fleem['Vigorosa_FLEEM_10.2'] = dados['Vigorosa_FLEEM_10.2']
+dados_gerais_af_vigorosa_fleem['Vigorosa_FLEEM_10.3'] = dados['Vigorosa_FLEEM_10.3']
+dados_gerais_af_vigorosa_fleem['Vigorosa_FLEEM_10.4'] = dados['Vigorosa_FLEEM_10.4']
+dados_gerais_af_vigorosa_fleem['Vigorosa_FLEEM_10.5'] = dados['Vigorosa_FLEEM_10.5']
+
+
+#Separando os dados para cada indivi?duo para cada intensidade, para os graficos com o comportamento de cada individuo
+
+#Leve
+# Inicialize uma lista vazia para armazenar as listas resultantes
+listas_resultantes_leve = []
+
+# Itere pelas linhas do DataFrame e crie uma lista para cada linha
+for index, row in dados_gerais_af_leve_fleem.iterrows():
+    # Converte a linha para uma lista e a adiciona ? lista de resultados
+    lista = row.tolist()
+    listas_resultantes_leve.append(lista)
+
+
+#Moderada
+# Inicialize uma lista vazia para armazenar as listas resultantes
+listas_resultantes_moderada = []
+
+# Itere pelas linhas do DataFrame e crie uma lista para cada linha
+for index, row in dados_gerais_af_moderada_fleem.iterrows():
+    # Converte a linha para uma lista e a adiciona ? lista de resultados
+    lista = row.tolist()
+    listas_resultantes_moderada.append(lista)
+
+
+#Vigorosa
+# Inicialize uma lista vazia para armazenar as listas resultantes
+listas_resultantes_vigorosa = []
+
+# Itere pelas linhas do DataFrame e crie uma lista para cada linha
+for index, row in dados_gerais_af_vigorosa_fleem.iterrows():
+    # Converte a linha para uma lista e a adiciona ? lista de resultados
+    lista = row.tolist()
+    listas_resultantes_vigorosa.append(lista)
+
+
+# Agora, vamos definir os valores para os eixos do nosso gr?fico, com base nos GLMMs gerados
+
+
+
+########################### Dados para a intensidade leve #########################
+
+#Definindo valores do eixo Y para intensidade leve
+leve_semana_1_fleem = 2815
+leve_semana_2_fleem = 2804
+leve_semana_3_fleem = 2804
+leve_semana_4_fleem = 2823
+leve_semana_5_fleem = 2664
+
+
+#Calculando intervalos de confianca para intensidade leve (usando como erro padrao os resultados obtidos atraves das analises executadas no r)
+ic_leve_sem1_fleem = 1.96*117
+ic_leve_sem2_fleem = 1.96*117
+ic_leve_sem3_fleem = 1.96*117
+ic_leve_sem4_fleem = 1.96*117
+ic_leve_sem5_fleem = 1.96*117
+
+
+#Definindo o intervalo de confianca do grafico para intensidade leve
+yerr1_leve_fleem = ic_leve_sem1_fleem
+yerr2_leve_fleem = ic_leve_sem2_fleem
+yerr3_leve_fleem = ic_leve_sem3_fleem
+yerr4_leve_fleem = ic_leve_sem4_fleem
+yerr5_leve_fleem = ic_leve_sem5_fleem
+
+
+########################### Dados para a intensidade moderada #########################
+#Definindo valores do eixo Y para intensidade moderada
+moderada_semana_1_fleem = 291
+moderada_semana_2_fleem = 280
+moderada_semana_3_fleem = 301
+moderada_semana_4_fleem = 279
+moderada_semana_5_fleem = 282
+
+
+
+#Calculando intervalos de confianca para intensidade moderada
+ic_mod_sem1_fleem = 1.96*17.5
+ic_mod_sem2_fleem = 1.96*17.5
+ic_mod_sem3_fleem = 1.96*17.5
+ic_mod_sem4_fleem = 1.96*17.5
+ic_mod_sem5_fleem = 1.96*17.5
+
+
+#Definindo o intervalo de confianca do grafico para intensidade moderada
+yerr1_mod_fleem = ic_mod_sem1_fleem
+yerr2_mod_fleem = ic_mod_sem2_fleem
+yerr3_mod_fleem = ic_mod_sem3_fleem
+yerr4_mod_fleem = ic_mod_sem4_fleem
+yerr5_mod_fleem = ic_mod_sem5_fleem
+
+
+########################### Dados para a intensidade vigorosa #########################
+#Definindo valores do eixo Y para intensidade vigorosa
+vigorosa_semana_1_fleem = 115
+vigorosa_semana_2_fleem = 106
+vigorosa_semana_3_fleem = 106
+vigorosa_semana_4_fleem = 102
+vigorosa_semana_5_fleem = 103
+
+
+#Calculando intervalos de confianca para intensidade vigorosa
+ic_vig_sem1_fleem = 1.96*12.2
+ic_vig_sem2_fleem = 1.96*12.2
+ic_vig_sem3_fleem = 1.96*12.2
+ic_vig_sem4_fleem = 1.96*12.2
+ic_vig_sem5_fleem = 1.96*12.2
+
+
+#Definindo o intervalo de confianca do grafico para intensidade vigorosa
+yerr1_vig_fleem = ic_vig_sem1_fleem
+yerr2_vig_fleem = ic_vig_sem2_fleem
+yerr3_vig_fleem = ic_vig_sem3_fleem
+yerr4_vig_fleem = ic_vig_sem4_fleem
+yerr5_vig_fleem = ic_vig_sem5_fleem
+
+#Construindo subplots com graficos de media e IC e dados individuais ao longo das semanas para as medidas obtidas atraves do FLEEM System
+
+
+
+#graficos com dados de atividade fisica leve
+fig, ax = plt.subplots(nrows = 3, ncols = 2, figsize=(9, 10), sharex=True)
+
+# Inserir graficos com media + IC 95%
+ax[0,0].errorbar(['Semana 1'], leve_semana_1_fleem, yerr=yerr1_leve_fleem, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 2'], leve_semana_2_fleem, yerr=yerr2_leve_fleem, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 3'], leve_semana_3_fleem, yerr=yerr3_leve_fleem, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 4'], leve_semana_4_fleem, yerr=yerr4_leve_fleem, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 5'], leve_semana_5_fleem, yerr=yerr5_leve_fleem, fmt='-o', color = '#228B22')
+
+ax[0,0].set_ylabel('Tempo (minutos)')
+ax[0,0].set_yticks(range(1000, 5000, 500))
+
+
+# Inserir graficos com o comportamento de cada individuo
+ax[0,1].plot(semanas, listas_resultantes_leve[0], color = '#228B22',linestyle='-', marker = 'o', markersize = 4, label = 'Leve')
+ax[0,1].plot(semanas, listas_resultantes_leve[1], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[2], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[3], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[4], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[5], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[6], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[7], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[8], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[9], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[10], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[11], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[12], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[13], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[14], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[15], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[16], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[17], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[18], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[19], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[20], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[21], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[22], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[23], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[24], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[25], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[26], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[27], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[28], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[29], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[30], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[31], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[32], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[33], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[34], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[35], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[36], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[37], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[38], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[39], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[40], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[41], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[42], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[43], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[44], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[45], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[46], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[47], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[48], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[49], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[50], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[51], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[52], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[53], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[54], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[55], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[56], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[57], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[58], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[59], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[60], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[61], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[62], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[63], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+
+ax[0,1].set_yticks(range(1000, 5000, 500))
+
+#graficos com dados de atividade fisica moderada
+# Inserir graficos com media + IC 95%
+ax[1,0].errorbar(['Semana 1'], moderada_semana_1_fleem, yerr=yerr1_mod_fleem, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 2'], moderada_semana_2_fleem, yerr=yerr2_mod_fleem, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 3'], moderada_semana_3_fleem, yerr=yerr3_mod_fleem, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 4'], moderada_semana_4_fleem, yerr=yerr4_mod_fleem, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 5'], moderada_semana_5_fleem, yerr=yerr5_mod_fleem, fmt='-o', color = '#FF8C00')
+
+
+ax[1,0].set_ylabel('Tempo (minutos)')
+ax[1,0].set_yticks(range(0, 800, 100))
+
+# Inserir graficos com o comportamento de cada individuo
+ax[1,1].plot(semanas, listas_resultantes_moderada[0], color = '#FF8C00',linestyle='-', marker = 'o', markersize = 4, label = 'Moderada')
+ax[1,1].plot(semanas, listas_resultantes_moderada[1], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[2], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[3], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[4], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[5], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[6], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[7], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[8], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[9], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[10], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[11], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[12], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[13], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[14], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[15], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[16], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[17], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[18], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[19], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[20], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[21], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[22], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[23], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[24], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[25], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[26], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[27], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[28], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[29], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[30], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[31], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[32], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[33], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[34], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[35], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[36], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[37], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[38], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[39], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[40], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[41], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[42], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[43], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[44], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[45], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[46], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[47], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[48], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[49], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[50], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[51], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[52], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[53], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[54], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[55], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[56], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[57], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[58], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[59], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[60], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[61], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[62], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[63], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].set_yticks(range(0, 800, 100))
+
+
+#graficos com dados de atividade fisica vigorosa
+# Inserir graficos com media + IC 95%
+ax[2,0].errorbar(['Semana 1'], vigorosa_semana_1_fleem, yerr=yerr1_vig_fleem, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 2'], vigorosa_semana_2_fleem, yerr=yerr2_vig_fleem, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 3'], vigorosa_semana_3_fleem, yerr=yerr3_vig_fleem, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 4'], vigorosa_semana_4_fleem, yerr=yerr4_vig_fleem, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 5'], vigorosa_semana_5_fleem, yerr=yerr5_vig_fleem, fmt='-o', color = '#FF0000')
+
+
+ax[2,0].set_ylabel('Tempo (minutos)')
+ax[2,0].set_yticks(range(0, 700, 100))
+
+# Inserir graficos com o comportamento de cada individuo
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[0], color = '#FF0000',linestyle='-', marker = 'o', markersize = 4, label = 'Vigorosa')
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[1], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[2], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[3], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[4], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[5], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[6], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[7], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[8], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[9], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[10], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[11], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[12], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[13], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[14], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[15], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[16], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[17], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[18], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[19], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[20], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[21], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[22], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[23], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[24], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[25], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[26], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[27], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[28], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[29], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[30], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[31], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[32], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[33], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[34], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[35], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[36], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[37], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[38], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[39], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[40], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[41], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[42], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[43], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[44], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[45], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[46], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[47], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[48], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[49], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[50], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[51], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[52], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[53], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[54], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[55], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[56], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[57], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[58], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[59], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[60], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[61], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[62], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[63], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].set_yticks(range(0, 700, 100))
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+fontP = FontProperties()
+fontP.set_size('small')
+#fig.autofmt_xdate(rotation=45)
+fig.legend(loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=3)
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Modelos mistos/Gr?ficos/FLEEM/dados_FLEEM_ao_longo_do_tempo.png', bbox_inches='tight', dpi = 300)
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Modelos mistos/Gr?ficos/FLEEM/dados_FLEEM_ao_longo_do_tempo_2.png', bbox_inches='tight', dpi = 300) # Para salvar uma vers?o com o eixo Y com valores que variam de acordo com o minimo e maximo das VDs
+plt.show()
+``` 
+\
+\
+
+## IPAQ
+
+``` {python}
+# Importar banco de dados
+dados = pd.read_csv('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Confiabilidade teste-reteste/Coeficiente de correlacao intraclasse/IPAQ/dados_ipaq_icc_wide.csv')
+
+# Definidir valores do eixo X dos gráficos
+semanas = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5']
+
+
+#Separando os dados por intensidade (IPAQ)
+#Leve
+dados_gerais_af_leve_ipaq = pd.DataFrame()
+dados_gerais_af_leve_ipaq['Caminhada_IPAQ_10.1'] = pd.DataFrame(dados['Caminhada_IPAQ_10.1'])
+dados_gerais_af_leve_ipaq['Caminhada_IPAQ_10.2'] = dados['Caminhada_IPAQ_10.2']
+dados_gerais_af_leve_ipaq['Caminhada_IPAQ_10.3'] = dados['Caminhada_IPAQ_10.3']
+dados_gerais_af_leve_ipaq['Caminhada_IPAQ_10.4'] = dados['Caminhada_IPAQ_10.4']
+dados_gerais_af_leve_ipaq['Caminhada_IPAQ_10.5'] = dados['Caminhada_IPAQ_10.5']
+
+#Moderada
+dados_gerais_af_moderada_ipaq = pd.DataFrame()
+dados_gerais_af_moderada_ipaq['Moderada_IPAQ_10.1'] = pd.DataFrame(dados['Moderada_IPAQ_10.1'])
+dados_gerais_af_moderada_ipaq['Moderada_IPAQ_10.2'] = dados['Moderada_IPAQ_10.2']
+dados_gerais_af_moderada_ipaq['Moderada_IPAQ_10.3'] = dados['Moderada_IPAQ_10.3']
+dados_gerais_af_moderada_ipaq['Moderada_IPAQ_10.4'] = dados['Moderada_IPAQ_10.4']
+dados_gerais_af_moderada_ipaq['Moderada_IPAQ_10.5'] = dados['Moderada_IPAQ_10.5']
+
+#Vigorosa
+dados_gerais_af_vigorosa_ipaq = pd.DataFrame()
+dados_gerais_af_vigorosa_ipaq['Vigorosa_IPAQ_10.1'] = pd.DataFrame(dados['Vigorosa_IPAQ_10.1'])
+dados_gerais_af_vigorosa_ipaq['Vigorosa_IPAQ_10.2'] = dados['Vigorosa_IPAQ_10.2']
+dados_gerais_af_vigorosa_ipaq['Vigorosa_IPAQ_10.3'] = dados['Vigorosa_IPAQ_10.3']
+dados_gerais_af_vigorosa_ipaq['Vigorosa_IPAQ_10.4'] = dados['Vigorosa_IPAQ_10.4']
+dados_gerais_af_vigorosa_ipaq['Vigorosa_IPAQ_10.5'] = dados['Vigorosa_IPAQ_10.5']
+
+
+#Separando os dados para cada indivíduo para cada intensidade
+
+#Leve
+# Inicialize uma lista vazia para armazenar as listas resultantes
+listas_resultantes_leve = []
+
+# Itere pelas linhas do DataFrame e crie uma lista para cada linha
+for index, row in dados_gerais_af_leve_ipaq.iterrows():
+    # Converte a linha para uma lista e a adiciona ? lista de resultados
+    lista = row.tolist()
+    listas_resultantes_leve.append(lista)
+    
+
+#Moderada
+# Inicialize uma lista vazia para armazenar as listas resultantes
+listas_resultantes_moderada = []
+
+# Itere pelas linhas do DataFrame e crie uma lista para cada linha
+for index, row in dados_gerais_af_moderada_ipaq.iterrows():
+    # Converte a linha para uma lista e a adiciona ? lista de resultados
+    lista = row.tolist()
+    listas_resultantes_moderada.append(lista)
+
+#Vigorosa
+# Inicialize uma lista vazia para armazenar as listas resultantes
+listas_resultantes_vigorosa = []
+
+# Itere pelas linhas do DataFrame e crie uma lista para cada linha
+for index, row in dados_gerais_af_vigorosa_ipaq.iterrows():
+    # Converte a linha para uma lista e a adiciona ? lista de resultados
+    lista = row.tolist()
+    listas_resultantes_vigorosa.append(lista)
+
+
+
+########################### Dados para a intensidade leve #########################
+#Definindo valores do eixo Y para intensidade leve (com base nos outputs das análises)
+leve_semana_1 = 433
+leve_semana_2 = 361
+leve_semana_3 = 346
+leve_semana_4 = 353
+leve_semana_5 = 272
+
+#Calculando intervalos de confiança para intensidade leve (com base nos outputs das análises)
+ic_leve_sem1 = 1.96*47.4
+ic_leve_sem2 = 1.96*46.7
+ic_leve_sem3 = 1.96*46.6
+ic_leve_sem4 = 1.96*46.4
+ic_leve_sem5 = 1.96*46.4
+
+#Definindo o intervalo de confiança do gráfico para intensidade leve
+yerr1_leve = ic_leve_sem1
+yerr2_leve = ic_leve_sem2
+yerr3_leve = ic_leve_sem3
+yerr4_leve = ic_leve_sem4
+yerr5_leve = ic_leve_sem5
+
+########################### Dados para a intensidade moderada #########################
+#Definindo valores do eixo Y para intensidade moderada
+moderada_semana_1 = 394
+moderada_semana_2 = 397
+moderada_semana_3 = 391
+moderada_semana_4 = 394
+moderada_semana_5 = 395
+
+#Calculando intervalos de confiança para intensidade moderada
+ic_mod_sem1 = 1.96*27.8
+ic_mod_sem2 = 1.96*28.6
+ic_mod_sem3 = 1.96*28.0
+ic_mod_sem4 = 1.96*28.1
+ic_mod_sem5 = 1.96*28.1
+
+#Definindo o intervalo de confiança do gráfico para intensidade moderada
+yerr1_mod = ic_mod_sem1
+yerr2_mod = ic_mod_sem2
+yerr3_mod = ic_mod_sem3
+yerr4_mod = ic_mod_sem4
+yerr5_mod = ic_mod_sem5
+
+########################### Dados para a intensidade vigorosa #########################
+#Definindo valores do eixo Y para intensidade vigorosa
+vigorosa_semana_1 = 147
+vigorosa_semana_2 = 129
+vigorosa_semana_3 = 157
+vigorosa_semana_4 = 132
+vigorosa_semana_5 = 130
+
+#Calculando intervalos de confiança para intensidade vigorosa
+ic_vig_sem1 = 1.96*22.0
+ic_vig_sem2 = 1.96*21.5
+ic_vig_sem3 = 1.96*21.6
+ic_vig_sem4 = 1.96*21.5
+ic_vig_sem5 = 1.96*21.6
+
+#Definindo o intervalo de confiança do gráfico para intensidade vigorosa
+yerr1_vig = ic_vig_sem1
+yerr2_vig = ic_vig_sem2
+yerr3_vig = ic_vig_sem3
+yerr4_vig = ic_vig_sem4
+yerr5_vig = ic_vig_sem5
+
+
+#Construindo subplots com gráficos de média e IC e dados individuais ao longo das semanas IPAQ
+
+#Gráficos com dados de atividade física leve
+fig, ax = plt.subplots(nrows = 3, ncols = 2, figsize=(9,10), sharex=True)
+
+# Construir gráficos com esperança e IC 95% para cada uma das semanas
+ax[0,0].errorbar(['Semana 1'], leve_semana_1, yerr=yerr1_leve, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 2'], leve_semana_2, yerr=yerr2_leve, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 3'], leve_semana_3, yerr=yerr3_leve, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 4'], leve_semana_4, yerr=yerr4_leve, fmt='-o', color = '#228B22')
+ax[0,0].errorbar(['Semana 5'], leve_semana_5, yerr=yerr5_leve, fmt='-o', color = '#228B22')
+
+
+ax[0,0].set_ylabel('Tempo (minutos)')
+ax[0,0].set_yticks(range(0, 2000, 200))
+
+# Construir gráficos com o comportamento de cada indivíduo ao longo das semanas
+ax[0,1].plot(semanas, listas_resultantes_leve[0], color = '#228B22',linestyle='-', marker = 'o', markersize = 4, label = 'Caminhada')
+ax[0,1].plot(semanas, listas_resultantes_leve[1], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[2], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[3], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[4], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[5], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[6], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[7], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[8], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[9], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[10], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[11], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[12], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[13], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[14], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[15], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[16], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[17], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[18], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[19], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[20], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[21], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[22], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[23], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[24], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[25], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[26], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[27], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[28], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[29], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[30], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[31], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[32], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[33], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[34], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[35], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[36], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[37], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[38], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[39], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[40], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[41], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[42], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[43], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[44], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[45], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[46], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[47], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[48], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[49], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[50], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[51], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[52], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[53], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[54], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[55], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[56], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[57], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[58], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[59], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[60], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[61], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+ax[0,1].plot(semanas, listas_resultantes_leve[62], color = '#228B22', linestyle='-', marker = 'o', markersize = 4)
+
+ax[0,1].set_yticks(range(0, 2000, 200))
+
+#Gráficos com dados de atividade física moderada
+# Construir gráficos com esperança e IC 95% para cada uma das semanas
+ax[1,0].errorbar(['Semana 1'], moderada_semana_1, yerr=yerr1_mod, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 2'], moderada_semana_2, yerr=yerr2_mod, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 3'], moderada_semana_3, yerr=yerr3_mod, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 4'], moderada_semana_4, yerr=yerr4_mod, fmt='-o', color = '#FF8C00')
+ax[1,0].errorbar(['Semana 5'], moderada_semana_5, yerr=yerr5_mod, fmt='-o', color = '#FF8C00')
+
+ax[1,0].set_ylabel('Tempo (minutos)')
+ax[1,0].set_yticks(range(0, 2000, 200))
+
+# Construir gráficos com o comportamento de cada indivíduo ao longo das semanas
+ax[1,1].plot(semanas, listas_resultantes_moderada[0], color = '#FF8C00',linestyle='-', marker = 'o', markersize = 4, label = 'Moderada')
+ax[1,1].plot(semanas, listas_resultantes_moderada[1], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[2], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[3], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[4], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[5], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[6], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[7], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[8], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[9], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[10], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[11], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[12], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[13], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[14], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[15], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[16], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[17], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[18], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[19], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[20], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[21], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[22], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[23], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[24], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[25], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[26], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[27], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[28], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[29], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[30], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[31], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[32], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[33], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[34], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[35], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[36], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[37], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[38], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[39], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[40], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[41], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[42], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[43], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[44], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[45], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[46], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[47], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[48], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[49], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[50], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[51], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[52], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[53], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[54], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[55], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[56], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[57], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[58], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[59], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[60], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[61], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+ax[1,1].plot(semanas, listas_resultantes_moderada[62], color = '#FF8C00', linestyle='-', marker = 'o', markersize = 4)
+
+ax[1,1].set_yticks(range(0, 2000, 200))
+
+#Gráficos com dados de atividade física vigorosa
+# Construir gráficos com esperança e IC 95% para cada uma das semanas
+ax[2,0].errorbar(['Semana 1'], vigorosa_semana_1, yerr=yerr1_vig, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 2'], vigorosa_semana_2, yerr=yerr2_vig, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 3'], vigorosa_semana_3, yerr=yerr3_vig, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 4'], vigorosa_semana_4, yerr=yerr4_vig, fmt='-o', color = '#FF0000')
+ax[2,0].errorbar(['Semana 5'], vigorosa_semana_5, yerr=yerr5_vig, fmt='-o', color = '#FF0000')
+
+ax[2,0].set_ylabel('Tempo (minutos)')
+ax[2,0].set_yticks(range(0, 1000, 100))
+
+# Construir gráficos com o comportamento de cada indivíduo ao longo das semanas
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[0], color = '#FF0000',linestyle='-', marker = 'o', markersize = 4, label = 'Vigorosa')
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[1], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[2], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[3], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[4], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[5], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[6], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[7], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[8], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[9], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[10], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[11], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[12], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[13], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[14], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[15], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[16], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[17], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[18], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[19], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[20], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[21], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[22], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[23], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[24], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[25], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[26], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[27], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[28], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[29], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[30], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[31], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[32], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[33], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[34], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[35], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[36], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[37], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[38], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[39], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[40], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[41], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[42], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[43], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[44], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[45], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[46], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[47], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[48], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[49], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[50], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[51], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[52], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[53], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[54], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[55], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[56], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[57], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[58], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[59], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[60], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[61], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+ax[2,1].plot(semanas, listas_resultantes_vigorosa[62], color = '#FF0000', linestyle='-', marker = 'o', markersize = 4)
+
+ax[2,1].set_yticks(range(0, 1000, 100))
+
+plt.rcParams['axes.labelsize']=12
+plt.rcParams['axes.titlesize']=12
+
+
+plt.tight_layout()
+fontP = FontProperties()
+fontP.set_size('small')
+fig.legend(loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=3)
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Modelos mistos/Gr?ficos/IPAQ/Dados_IPAQ_ao_longo_do_tempo_1.png', bbox_inches='tight', dpi = 300)
+#plt.savefig('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Modelos mistos/Gr?ficos/IPAQ/Dados_IPAQ_ao_longo_do_tempo_2.png', bbox_inches='tight', dpi = 300)
+plt.show()
+```
+

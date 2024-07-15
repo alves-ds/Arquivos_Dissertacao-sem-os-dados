@@ -1,0 +1,1 @@
+Nesta etapa, para a análise da distribuição das variáveis dependentes e uma noção inicial das distribuições que melhorar se adequariam aos modelos lineares generalizados, utilizou-se scripts já construídos na época da qualificação. Portanto, pode-se gerar uma certa estranheza, alguns scripts estarem em R e estes em Python. Portanto, desde já me desculpem. 

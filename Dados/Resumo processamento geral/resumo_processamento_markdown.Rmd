@@ -1,0 +1,1647 @@
+---
+title: "Resumo do processamento dos dados"
+author: "Douglas Silva Alves"
+date: "2024-02-01"
+output: 
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    df_print: paged
+    toc: TRUE
+    toc_depth: 2
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\
+
+# Apresentação
+
+Este arquivo foi criado como complemento à dissertação escrita por Douglas Silva Alves intitulada de "Consistência da atividade física obtida por meio do IPAQ e smartphone ao longo de diferentes semanas", como parte do documento suplementar, e para aprimorar a transparência quanto às etapas de processamento dos dados. Optou-se por um arquivo em r markdown posteriormente exposto através de uma página em Github Pages, para possibilitar assim uma reprodução automática dos scripts, sem que seja necessário que se baixe os algoritmos na sua máquina pessoal. Entretanto, todas as etapas do processamento se encontram no [meu github](https://github.com/alves-ds/MastersDissertation).\
+\
+
+# Etapa 1 (dados não processados)
+
+Antes de serem processados, os dados do IPAQ foram extraídos da plataforma Google Forms (aonde foram desenvolvidos e aplicados os questionários), e os dados do FLEEM System foram extraídos do banco de dados no qual a aplicação é hospedada. Portanto, vamos importar estes dados e dar uma olhada em como eles são sem nenhum tipo de processamento
+
+Primeiro, vamos importar as bibliotecas necessárias para importar os dados em excel e manipular os dados
+
+## Importar bibliotecas
+
+```{r Importar biblioteca para importar dados em excel, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(tidyr)
+```
+
+## Importar/visualizar dados do IPAQ
+
+```{r Importar dados sem processamento do IPAQ}
+dados_ipaq_sem_processamento <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/IPAQ/Respostas extraidas do google forms/Semana_1_(respostas).xlsx')
+```
+
+Vamos remover qualquer informação que permita a identificação dos participantes, e dar uma olhada em como os dados são
+
+```{r Remover identificação dos participantes}
+dados_ipaq_sem_procesamento_e_identificacao <- select(dados_ipaq_sem_processamento, -c(2, 3, 4, 5, 6, 7))
+```
+
+```{r cols.print=10, rows.print=5}
+dados_ipaq_sem_procesamento_e_identificacao
+```
+
+## Importar/visualizar dados do FLEEM
+
+Para o FLEEM, vamos dar uma olhada no arquivo de aceleração de um único sujeito
+
+```{r Importar arquivo de aceleração do FLEEM system sem processamento nenhum e visualizá-lo}
+dados_fleem_sem_processamento <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/FLEEM/Arquivos de aceleração extraídos do site/1.xlsx')
+
+dados_fleem_sem_processamento
+```
+
+\
+\
+
+# Etapa 2 (primeiro processamento)
+
+Nesta etapa, os dados extraídos do IPAQ e do servidor do FLEEM foram submetidos à processamentos iniciais.
+
+Começaremos pelo realizado com os dados do IPAQ
+
+## Processamento IPAQ
+
+### Importar bibliotecas
+
+```{r message=FALSE, warning=FALSE}
+library(plyr)
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(writexl)
+```
+
+### Carregar dados de cada semana
+
+```{r}
+dados_sem1 = read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/IPAQ/Respostas extraidas do google forms/Semana_1_(respostas).xlsx')
+dados_sem2 = read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/IPAQ/Respostas extraidas do google forms/Semana_2_(respostas).xlsx')
+dados_sem3 = read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/IPAQ/Respostas extraidas do google forms/Semana_3_(respostas).xlsx')
+dados_sem4 = read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/IPAQ/Respostas extraidas do google forms/Semana_4_(respostas).xlsx')
+dados_sem5 = read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/IPAQ/Respostas extraidas do google forms/Semana_5_(respostas).xlsx')
+```
+
+É notável que alguns conjuntos de dados possuem 38 colunas e outros 35. Vamos remover algumas variáveis desses que possuem 38 para garantir que os bancos de dados sejam equivalentes
+
+### Remover variáveis desnecessárias
+
+```{r}
+dados_sem2 <- dados_sem2 %>% 
+  select(-`Qual é a sua idade?`, -`Qual é o seu sexo biológico?`, -`Qual é o nível de escolaridade mais alto que você obteve até agora?`)
+
+dados_sem3 <- dados_sem3 %>% 
+  select(-`Qual é a sua idade?`, -`Qual é o seu sexo biológico?`, -`Qual é o nível de escolaridade mais alto que você obteve até agora?`)
+```
+
+### Criar uma função p/ renomear as colunas
+
+```{r}
+renomear_colunas <- function(dados){
+
+  colnames(dados)[colnames(dados) == "1b - Em quantos dias da semana anterior (últimos 7 dias) você fez atividades VIGOROSAS, POR PELO MENOS 10 MINUTOS CONTÍNUOS, como trabalho de construção pesada, carregar grandes pesos, trabalhar com enxada, escavar ou subir escadas como parte do seu trabalho ou ocupação? (Caso você não tenha feito nenhuma das atividades citadas acima na última semana, coloque 00:00 (zero) na pergunta seguinte e vá para a questão 1d)."] <- "Freq_ocupacional_vig"
+  colnames(dados)[colnames(dados) == "1c - Quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS)) fazendo atividades físicas vigorosas como parte do seu trabalho ou ocupação? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_ocupacional_vig"
+  colnames(dados)[colnames(dados) == "1d - Em quantos dias da semana anterior (últimos 7 dias) você fez atividades MODERADAS, POR PELO MENOS 10 MINUTOS CONTÍNUOS, como carregar pesos leves como parte do seu trabalho ou ocupação? (Caso você não tenha feito nenhuma das atividades citadas acima na última semana, coloque 00:00 (zero) na pergunta seguinte e vá para a questão 1f)."] <- "Freq_ocupacional_mod"
+  colnames(dados)[colnames(dados) == "1e - Quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS)) fazendo atividades moderadas como parte do seu trabalho ou ocupação? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_ocupacional_mod"
+  colnames(dados)[colnames(dados) == "1f - Em quantos dias da semana anterior (últimos 7 dias) você ANDOU, durante PELO MENOS 10 MINUTOS CONTÍNUOS, como parte do seu trabalho ou ocupação? Por favor, NÃO inclua o andar como forma de transporte para ir ou voltar do trabalho ou ocupação (Caso você não tenha andando na última semana, como parte do seu trabalho ou ocupação, coloque 00:00 (zero) na pergunta seguinte e vá para a questão 1d)."] <- "Freq_ocupacional_cam"
+  colnames(dados)[colnames(dados) == "1g - Quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS)) caminhando como parte do seu trabalho ou ocupação? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_ocupacional_cam"
+  colnames(dados)[colnames(dados) == "2a - Em quantos dias da última semana (últimos 7 dias) você andou de carro, ônibus, metrô ou trem? (Caso você não tenha utilizado nenhum destes meios de transporte na última semana, coloque 00:00 (zero) na pergunta seguinte e vá para a questão 2c)."] <- "Freq_carro"
+  colnames(dados)[colnames(dados) == "2b - Quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS)) andando de carro, ônibus, metrô ou trem? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que andou nesses meios de transporte)"] <- "Tempo_carro"
+  colnames(dados)[colnames(dados) == "2c - Em quantos dias da última semana (últimos 7 dias) você andou de bicicleta por PELO MENOS 10 MINUTOS CONTÍNUOS para ir de um lugar para outro? (NÃO inclua o pedalar por lazer ou exercício, e caso não tenha andado de bicicleta para ir de um lugar ao outro nos últimos 7 dias, marque 00:00 (zero) na questão seguinte e vá para a 2e)"] <- "Freq_bike"
+  colnames(dados)[colnames(dados) == "2d - Nos dias que você pedalou, quanto tempo em média você pedalou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS)) para ir de um lugar para outro? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que você pedalou)"] <- "Tempo_bike"
+  colnames(dados)[colnames(dados) == "2e - Em quantos dias da última semana (últimos 7 dias) você caminhou por PELO MENOS 10 MINUTOS CONTÍNUOS para ir de um lugar para outro? (NÃO inclua as caminhadas por lazer ou exercício, e caso não tenha caminhado para ir de um lugar ao outro nos últimos 7 dias, marque 00:00 (zero) na questão seguinte e vá para a seção 3)"] <- "Freq_caminhada"
+  colnames(dados)[colnames(dados) == "2f - Quando você caminhou para ir de um lugar para outro, quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que você caminhou)"] <- "Tempo_caminhada"
+  colnames(dados)[colnames(dados) == "3a - Em quantos dias da última semana (últimos 7 dias) você fez atividades VIGOROSAS no jardim ou quintal por pelo menos 10 minutos como carpir, lavar o quintal, esfregar o chão? (Caso você não tenha feito nenhuma dessas atividades, coloque 00:00 (zero) na pergunta seguinte e vá para a questão 3c)."] <- "Freq_vig_jardim"  
+  colnames(dados)[colnames(dados) == "3b - Nos dias que você fez este tipo de atividades vigorosas no quintal ou jardim, quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_vig_jardim"  
+  colnames(dados)[colnames(dados) == "3c - Em quantos dias da semana anterior (últimos 7 dias) você fez atividades MODERADAS por pelo menos 10 minutos como carregar pesos leves, limpar vidros ou varrer, no jardim ou quintal? (Caso você não tenha feito nenhuma dessas atividades, coloque 00:00 (zero) na pergunta seguinte e vá para a questão 3e)."] <- "Freq_mod_jardim"
+  colnames(dados)[colnames(dados) == "3d - Nos dias que você fez este tipo de atividades, quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS)) fazendo essas atividades moderadas no jardim ou quintal? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_mod_jardim"  
+  colnames(dados)[colnames(dados) == "3e - Em quantos dias da última semana (últimos 7 dias) você fez atividades MODERADAS por pelo menos 10 minutos como carregar pesos leves, limpar vidros, varrer ou limpar o chão dentro da sua casa? (Caso você não tenha feito nenhuma dessas atividades, coloque 00:00 (zero) na pergunta seguinte e vá para a seção 4)."] <- "Freq_mod_casa"    
+  colnames(dados)[colnames(dados) == "3f - Nos dias que você fez este tipo de atividades moderadas dentro da sua casa, quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_mod_casa"  
+  colnames(dados)[colnames(dados) == "4a - SEM CONTAR QUALQUER CAMINHADA QUE VOCÊ TENHA CITADO ANTERIORMENTE, em quantos dias da semana anterior (últimos 7 dias) você caminhou POR PELO MENOS 10 MINUTOS CONTÍNUOS no seu tempo livre? (Caso você não tenha caminhado no seu tempo livre, responda 00:00 (zero) na questão seguinte e vá para a questão 4c)."] <- "Freq_cam_lazer"  
+  colnames(dados)[colnames(dados) == "4b - Nos dias em que você caminhou NO SEU TEMPO LIVRE, quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que você caminhou NO SEU TEMPO LIVRE)"] <- "Tempo_cam_lazer"  
+  colnames(dados)[colnames(dados) == "4c - Em quantos dias da semana anterior (últimos 7 dias), você fez atividades VIGOROSAS NO SEU TEMPO LIVRE por pelo menos 10 minutos, como correr, fazer exercícios aeróbios, nadar rápido, pedalar rápido ou fazer jogging? (Caso você não tenha feito nenhuma atividade VIGOROSA no seu tempo livre nos últimos 7 dias, marque 00:00 (zero) na questão seguinte e vá para a questão 4e)."] <- "Freq_vig_lazer"  
+  colnames(dados)[colnames(dados) == "4d - Nos dias em que você fez estas atividades vigorosas no seu tempo livre quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_vig_lazer"  
+  colnames(dados)[colnames(dados) == "4e - Em quantos dias da semana anterior (últimos 7 dias) você fez atividades MODERADAS NO SEU TEMPO LIVRE por pelo menos 10 minutos, como pedalar ou nadar a velocidade regular, jogar bola, vôlei, basquete ou tênis? (Caso você não tenha feito nenhuma atividade MODERADA no seu tempo livre nos últimos 7 dias, marque 00:00 (zero) na questão seguinte e vá para a seção 5)."] <- "Freq_mod_lazer"  
+  colnames(dados)[colnames(dados) == "4f - Nos dias em que você fez estas atividades moderadas no seu tempo livre quanto tempo em média você gastou POR DIA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você gastou por dia, na maioria dos dias que fez essas atividades)"] <- "Tempo_mod_lazer"  
+  colnames(dados)[colnames(dados) == "5a - Quanto tempo em média você gastou sentado durante um DIA DE SEMANA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você passou sentado por dia, na maioria dos dias em que se manteve sentado)"] <- "Tempo_sentado_semana"  
+  colnames(dados)[colnames(dados) == "5b - Quanto tempo em média você gastou sentado durante um DIA DE FINAL DE SEMANA (em horas, seguidas de minutos (HORAS:MINUTOS))? (Para estimar essa média, pense em quanto tempo normalmente você passou sentado em um dia de final de semana, na maioria dos dias de final de semana que se manteve sentado)"] <- "Tempo_sentado_fds"  
+  
+  
+  return(dados)
+  
+  }
+```
+
+### Aplicar a função
+
+```{r message=FALSE, warning=FALSE}
+dados_sem1 <- renomear_colunas(dados_sem1)
+dados_sem2 <- renomear_colunas(dados_sem2)
+dados_sem3 <- renomear_colunas(dados_sem3)
+dados_sem4 <- renomear_colunas(dados_sem4)
+dados_sem5 <- renomear_colunas(dados_sem5)
+```
+
+Vamos criar uma função para remover variáveis que não serão utilizadas no processamento
+
+### Criar outra função
+
+```{r}
+remover_variaveis <- function(dados){
+  
+  select(dados, -2, -3, -5, -6, -7, -8, -9)
+}
+```
+
+### Aplicar a função nos dados
+
+```{r}
+dados_sem1 <- remover_variaveis(dados_sem1)
+dados_sem2 <- remover_variaveis(dados_sem2)
+dados_sem3 <- remover_variaveis(dados_sem3)
+dados_sem4 <- remover_variaveis(dados_sem4)
+dados_sem5 <- remover_variaveis(dados_sem5)
+```
+
+Os dados de data precisam ser convertidos para o formato H:M:S, portanto, faremos isso por meio de uma função
+
+### Criar função p/ alterar data
+
+```{r}
+extrair_horas <- function(dados){
+  dados$Tempo_ocupacional_vig <- format(dados$Tempo_ocupacional_vig, "%H:%M:%S")
+  dados$Tempo_ocupacional_mod <- format(dados$Tempo_ocupacional_mod, "%H:%M:%S")
+  dados$Tempo_ocupacional_cam <- format(dados$Tempo_ocupacional_cam, "%H:%M:%S")
+  dados$Tempo_carro <- format(dados$Tempo_carro, "%H:%M:%S")
+  dados$Tempo_bike <- format(dados$Tempo_bike, "%H:%M:%S")
+  dados$Tempo_caminhada <- format(dados$Tempo_caminhada, "%H:%M:%S")
+  dados$Tempo_vig_jardim <- format(dados$Tempo_vig_jardim, "%H:%M:%S")
+  dados$Tempo_mod_jardim <- format(dados$Tempo_mod_jardim, "%H:%M:%S")
+  dados$Tempo_mod_casa <- format(dados$Tempo_mod_casa, "%H:%M:%S")
+  dados$Tempo_cam_lazer <- format(dados$Tempo_cam_lazer, "%H:%M:%S")
+  dados$Tempo_vig_lazer <- format(dados$Tempo_vig_lazer, "%H:%M:%S")
+  dados$Tempo_mod_lazer <- format(dados$Tempo_mod_lazer, "%H:%M:%S")
+  dados$Tempo_sentado_semana <- format(dados$Tempo_sentado_semana, "%H:%M:%S")
+  dados$Tempo_sentado_fds <- format(dados$Tempo_sentado_fds, "%H:%M:%S")
+  
+  return(dados)
+}
+```
+
+### Aplicar a função nos dados
+
+```{r}
+dados_sem1 <- extrair_horas(dados_sem1)
+dados_sem2 <- extrair_horas(dados_sem2)
+dados_sem3 <- extrair_horas(dados_sem3)
+dados_sem4 <- extrair_horas(dados_sem4)
+dados_sem5 <- extrair_horas(dados_sem5)
+```
+
+Agora precisamos converter as horas em minutos. Para isso, primeiro definiremos uma função que converte as horas em minutos para ser aplicada à cada coluna de tempo do banco de dados
+
+### Criar função
+
+```{r}
+converter_tempo_para_minutos <- function(coluna_tempo) {
+  segundos <- period_to_seconds(hms(coluna_tempo))
+  minutos <- segundos / 60
+  return(minutos)
+}
+```
+
+Agora vamos criar uma função composta, para conseguir aplicar a função de conversão de tempo em todos os bancos de dados
+
+### Criar outra função
+
+```{r}
+converter_tempo_para_minutos_bd <- function(dados){
+  
+  dados$Tempo_ocupacional_vig_min <- converter_tempo_para_minutos(dados$Tempo_ocupacional_vig)
+  dados$Tempo_ocupacional_mod_min <- converter_tempo_para_minutos(dados$Tempo_ocupacional_mod)
+  dados$Tempo_ocupacional_cam_min <- converter_tempo_para_minutos(dados$Tempo_ocupacional_cam)
+  dados$Tempo_carro_min <- converter_tempo_para_minutos(dados$Tempo_carro)
+  dados$Tempo_bike_min <- converter_tempo_para_minutos(dados$Tempo_bike)
+  dados$Tempo_caminhada_min <- converter_tempo_para_minutos(dados$Tempo_caminhada)
+  dados$Tempo_vig_jardim_min <- converter_tempo_para_minutos(dados$Tempo_vig_jardim)
+  dados$Tempo_mod_jardim_min <- converter_tempo_para_minutos(dados$Tempo_mod_jardim)
+  dados$Tempo_mod_casa_min <- converter_tempo_para_minutos(dados$Tempo_mod_casa)
+  dados$Tempo_cam_lazer_min <- converter_tempo_para_minutos(dados$Tempo_cam_lazer)
+  dados$Tempo_vig_lazer_min <- converter_tempo_para_minutos(dados$Tempo_vig_lazer)
+  dados$Tempo_mod_lazer_min <- converter_tempo_para_minutos(dados$Tempo_mod_lazer)
+  dados$Tempo_sentado_semana_min <- converter_tempo_para_minutos(dados$Tempo_sentado_semana)
+  dados$Tempo_sentado_fds_min <- converter_tempo_para_minutos(dados$Tempo_sentado_fds)
+  
+  
+  return(dados)
+}
+```
+
+### Aplicar a função nos dados
+
+```{r warning=FALSE}
+dados_sem1 <- converter_tempo_para_minutos_bd(dados_sem1)
+dados_sem2 <- converter_tempo_para_minutos_bd(dados_sem2)
+dados_sem3 <- converter_tempo_para_minutos_bd(dados_sem3)
+dados_sem4 <- converter_tempo_para_minutos_bd(dados_sem4)
+dados_sem5 <- converter_tempo_para_minutos_bd(dados_sem5)
+```
+
+Agora vamos construir outra função, agora para remover os dados de horas, mantendo assim somente os minutos no banco de dados
+
+### Criar função
+
+```{r}
+remover_var_horas <- function(dados){
+  
+  select(dados, -4, -6, -8, -10, -12, -14, -16, -18, -20, -22, -24, -26, -27, -28)
+  
+}
+```
+
+### Aplicar a função nos dados
+
+```{r}
+dados_sem1 <- remover_var_horas(dados_sem1)
+dados_sem2 <- remover_var_horas(dados_sem2)
+dados_sem3 <- remover_var_horas(dados_sem3)
+dados_sem4 <- remover_var_horas(dados_sem4)
+dados_sem5 <- remover_var_horas(dados_sem5)
+```
+
+Agora vamos verificar se existem possíveis outliers nos dados, seguindo as recomendações de processamento [deste site](https://sites.google.com/view/ipaq/score)
+
+### Criar função (verificar outliers)
+
+```{r}
+verificar_outliers <- function(dados){
+  
+  # Primeiro, definir a quantidade de horas diárias reportadas pelo sujeito, como a soma de todas as tarefas diárias reportadas
+dados$Atividade_diaria_total <- dados$Tempo_ocupacional_vig_min + dados$Tempo_ocupacional_mod_min + dados$Tempo_ocupacional_cam_min + dados$Tempo_carro_min + dados$Tempo_bike_min + dados$Tempo_caminhada_min + dados$Tempo_vig_jardim_min + dados$Tempo_mod_jardim_min + dados$Tempo_mod_casa_min + dados$Tempo_cam_lazer_min + dados$Tempo_vig_lazer_min + dados$Tempo_mod_lazer_min 
+  
+  
+  # Agora vamos verificar se esse valor é plausível, assumindo que cada indivíduo dorme pelo menos 8 horas por noite, a soma total das demais tarefas não pode ultrapassar 16 horas (960 minutos)
+  dados$outlier <- ifelse(dados$Atividade_diaria_total > 960, 1, 0)
+    
+  return(dados)
+  
+}
+```
+
+### Aplicar a função nos dados
+
+```{r}
+dados_sem1 <- verificar_outliers(dados_sem1)
+dados_sem2 <- verificar_outliers(dados_sem2)
+dados_sem3 <- verificar_outliers(dados_sem3)
+dados_sem4 <- verificar_outliers(dados_sem4)
+dados_sem5 <- verificar_outliers(dados_sem5)
+```
+
+Agora vamos construir uma função para quantificar os minutos de atividade física de cada intensidade e domínio por semana
+
+### Criar função (quantificar minutos)
+
+```{r}
+processar_ipaq <- function(dados){
+  
+  
+  # Extrair o número da string usando expressão regular
+  semana <- as.numeric(gsub("\\D", "", dados))
+  
+  
+  # Vamos quantificar a quantidade de minutos para cada domínio e intensidade, multiplicando a frequência autorrelatada pelo tempo autorrelatado em minutos
+  dados$Ocupacional_vig <- dados$Freq_ocupacional_vig * dados$Tempo_ocupacional_vig_min
+  dados$Ocupacional_mod <- dados$Freq_ocupacional_mod * dados$Tempo_ocupacional_mod_min
+  dados$Ocupacional_cam <- dados$Freq_ocupacional_cam * dados$Tempo_ocupacional_cam_min
+  dados$Carro <- dados$Freq_carro * dados$Tempo_carro_min
+  dados$Bike <- dados$Freq_bike * dados$Tempo_bike_min
+  dados$Caminhada <- dados$Freq_caminhada * dados$Tempo_caminhada_min
+  dados$Jardim_vig <- dados$Freq_vig_jardim * dados$Tempo_vig_jardim_min
+  dados$Jardim_mod <- dados$Freq_mod_jardim * dados$Tempo_mod_jardim_min
+  dados$Casa_mod <- dados$Freq_mod_casa * dados$Tempo_mod_casa_min
+  dados$Cam_lazer <- dados$Freq_cam_lazer * dados$Tempo_cam_lazer_min
+  dados$Vig_lazer <- dados$Freq_vig_lazer * dados$Tempo_vig_lazer_min
+  dados$Mod_lazer <- dados$Freq_mod_lazer * dados$Tempo_mod_lazer_min
+  
+  
+  # Vamos quantificar a quantidade semanal por intensidade
+  dados$Caminhada_total <- dados$Ocupacional_cam + dados$Caminhada + dados$Cam_lazer
+  dados$Moderada <- dados$Ocupacional_mod + dados$Bike + dados$Jardim_mod + dados$Casa_mod + dados$Mod_lazer
+  dados$Vigorosa <- dados$Ocupacional_vig + dados$Jardim_vig + dados$Vig_lazer
+  
+  # Agora vamos quantificar a quantidade semanal de AF em cada domínio
+  dados$Atividade_ocupacional <- dados$Ocupacional_vig + dados$Ocupacional_mod + dados$Ocupacional_cam
+  dados$Atividade_transporte <- dados$Carro + dados$Bike + dados$Caminhada
+  dados$Atividade_domestica <- dados$Jardim_vig + dados$Jardim_mod + dados$Casa_mod
+  dados$Atividade_lazer <- dados$Cam_lazer + dados$Vig_lazer + dados$Mod_lazer
+  
+  
+  
+  return(dados)
+}
+```
+
+### Aplicar a função
+
+```{r}
+dados_sem1 <- processar_ipaq(dados_sem1)
+dados_sem2 <- processar_ipaq(dados_sem2)
+dados_sem3 <- processar_ipaq(dados_sem3)
+dados_sem4 <- processar_ipaq(dados_sem4)
+dados_sem5 <- processar_ipaq(dados_sem5)
+```
+
+Vamos novamente filtrar os dados, agora mantendo somente as quantidades semanais. Para isso, vamos usar outra função
+
+### Criar função (manter dados semanais)
+
+```{r}
+ultimo_filtro <- function(dados){
+  
+  
+  select(dados, -c(2:26))
+  
+}
+```
+
+Agora vamos aplicar esse último filtro nos dados, restando os dados que faremos a concatenação dos bancos de dados
+
+### Aplicar função nos dados
+
+```{r}
+dados_sem1 <- ultimo_filtro(dados_sem1)
+dados_sem2 <- ultimo_filtro(dados_sem2)
+dados_sem3 <- ultimo_filtro(dados_sem3)
+dados_sem4 <- ultimo_filtro(dados_sem4)
+dados_sem5 <- ultimo_filtro(dados_sem5)
+```
+
+Agora vamos juntar os bancos de dados em apenas 1
+
+### Concatenar bancos de dados
+
+```{r}
+dados_semanas <- dados_sem1 %>%
+  left_join(dados_sem2, by = ('ID')) 
+
+dados_semanas <- dados_semanas %>%
+  left_join(dados_sem3, by = ('ID'))
+
+
+dados_semanas <- dados_semanas %>%
+  left_join(dados_sem4, by = ('ID'))
+
+
+dados_semanas <- dados_semanas %>%
+  left_join(dados_sem5, by = ('ID'))
+```
+
+Vamos criar uma variável para computar possíveis outliers
+
+### Computar possíveis outliers
+
+```{r}
+dados_semanas$Outliers <- dados_semanas$outlier + dados_semanas$outlier.x + dados_semanas$outlier.x.x + dados_semanas$outlier.y + dados_semanas$outlier.y.y
+```
+
+Agora por fim, vamos ver como os dados do IPAQ ficaram após o primeiro processamento
+
+### Visualizar dados
+
+```{r}
+dados_semanas
+```
+
+\
+
+## Processamento (FLEEM System)
+
+O FLEEM System exporta os dados de cada sujeito em um único arquivo com todos os dias. Portanto, foi necessário um script para separar estes dados em dias diferentes, para posteriormente poder submeter estes dados à um programa desenvolvido em Matlab. Este processo foi feito com todos os sujeitos, entretanto demonstraremos aqui somente para um.
+
+### Carregar pacotes necessários
+
+```{r warning=FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+```
+
+### Carregar arquivo com os dados anteriores à aquisição do domínio (xlsx)
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados <- read_excel("1.xlsx")
+```
+
+### Carregar arquivo com os dados posteriores à aquisição do domínio (csv)
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados <- read.csv("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/FLEEM/Arquivos de aceleração extraídos do site/79.csv")
+```
+
+### Código para operações com arquivo xlsx
+
+#### Converter os dados da coluna de data em um formato 'Date'
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados$Data <- as.Date(dados$datahora_app)
+```
+
+#### Separar os dados de data em ano, mês, dia, hora, minuto e segundo
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados$Ano <- as.double(format(dados$datahora_app, "%Y"))
+dados$Mes <- as.double(format(dados$datahora_app, "%m"))
+dados$Dia <- as.double(format(dados$datahora_app, "%d"))
+dados$hora <- as.double(format(dados$datahora_app,"%H"))
+dados$minuto <- as.double(format(dados$datahora_app,"%M"))
+dados$segundo <- as.double(format(dados$datahora_app,"%S"))
+```
+
+### Código para operações com arquivo csv
+
+### Converter os dados da coluna de data em um formato 'Date'
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados$Data <- as.Date(dados$datahora_app)
+```
+
+### Separar os dados de data em ano, mês, dia, hora, minuto e segundo
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados$Ano <- year(dados$datahora_app)
+dados$Mes <- month(dados$datahora_app)
+dados$Dia <- day(dados$datahora_app)
+dados$hora <- hour(dados$datahora_app)
+dados$minuto <- minute(dados$datahora_app)
+dados$segundo <- second(dados$datahora_app)
+```
+
+### Filtrar os dados para manter somente aqueles que são necessários para serem analisados em ambiente Matlab
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados = dados %>%
+  select(count, Data, Ano, Mes, Dia, hora, minuto, segundo)
+```
+
+### Separar os dados em um arquivo diferente para cada dia de monitoramento
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dia <- 0
+
+dados_split <- split(dados, dados$Data) # Separar o banco de dados, com base na data de coleta
+```
+
+### Especificar o diretório onde os arquivos para esse sujeito serão salvos
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+diretorio_destino <- "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Primeiro processamento/FLEEM/Arquivos em csv após o primeiro processamento/763" # O número corresponde à identificação única para esse sujeito
+```
+
+### Percorrer as diferentes datas, para salvar um arquivo csv para cada data
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+for(i in dados_split){
+  i <- i %>%
+    select(count, Ano, Mes, Dia, hora, minuto, segundo)
+  dia <- dia + 1
+  
+  # Criar o caminho completo do arquivo com file.path
+  caminho_arquivo <- file.path(diretorio_destino, paste("dia", as.character(dia), "csv", sep = "."))
+  
+  # Verificar se o diretório de destino existe, se não, criar
+  if (!dir.exists(diretorio_destino)) {
+    dir.create(diretorio_destino, recursive = TRUE)
+  }
+  
+  write.table(i, caminho_arquivo, sep = ",", col.names = FALSE, row.names = FALSE)
+}
+
+```
+
+O resultado final desse processamento era uma pasta para cada sujeito, e um arquivo excel para cada dia, para que estes dados fossem usados como entrada para um programa em Matlab\
+\
+
+# Etapa 3 (segundo processamento)
+
+O segundo processamento se pautou na análise dos dados do FLEEM System em ambiente Matlab. Este processamento computou a quantidade de minutos de aceleração do centro de massa de intensidade leve, moderada e vigorosa para cada dia de monitoramento de cada sujeito.
+
+Vamos dar uma olhada neste arquivo
+
+```{r}
+dados_fleem_segundo_processamento <- read.csv('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Segundo processamento/FLEEM/Arquivos para processar os dados de AF + dados de acelerometria/Accel/Resultado AF.csv')
+
+dados_fleem_segundo_processamento
+```
+
+\
+\
+
+# Etapa 4 (terceiro processamento)
+
+Nessa etapa, após os dados terem sido processados em ambiente Matlab, estes foram novamente processados em R para se quantificar a quantidade de aceleração de centro de massa realizada em diferentes intensidades ao longo das 5 semanas
+
+### Carregar pacotes
+
+```{r warning=FALSE}
+
+library(readxl)
+library(lubridate)
+library(dplyr)
+library(tidyr)
+
+```
+
+### Carregar banco de dados, após estes serem processados no Matlab
+
+```{r}
+dados <- read.csv("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Segundo processamento/FLEEM/Arquivos para processar os dados de AF + dados de acelerometria/Accel/Resultado AF.csv", header = TRUE, sep = ";")
+```
+
+### Lista de valores com os IDs dos indivíduos que completaram as 5 semanas
+
+```{r}
+valores_incluir <- c(684, 685, 686, 687, 688, 689, 690, 691, 692, 693, 695, 696, 697, 699, 700, 702, 703, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 716, 719, 720, 723, 725, 726, 727, 728, 729, 730, 733, 734, 737, 738, 740, 741, 743, 744, 745, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763)
+```
+
+### criando banco de dados com os indivíduos incluídos
+
+```{r}
+dados_incluidos <- dados %>% 
+  filter(IDPerfil %in% valores_incluir)
+```
+
+### Vamos Criar uma função para converter as horas em minutos
+
+```{r}
+converte_para_minutos <- function(tempo) {
+  partes <- strsplit(tempo, ":")[[1]]
+  horas <- as.numeric(partes[1])
+  minutos <- as.numeric(partes[2])
+  segundos <- as.numeric(partes[3])
+  
+  total_minutos <- horas * 60 + minutos + segundos / 60
+  return(total_minutos)
+}
+```
+
+### aplicando a função no banco de dados
+
+```{r}
+dados_transformados <- dados_incluidos %>%
+  mutate(
+    LeveMin = sapply(Ligth, converte_para_minutos),
+    ModeradaMin = sapply(Moderate, converte_para_minutos),
+    VigorosaMin = sapply(Vigorous, converte_para_minutos),
+    StrongMin = sapply(Strong, converte_para_minutos)
+    )
+```
+
+### Juntar strong e vigorous em uma só variável chamada 'vigorosa'
+
+```{r}
+dados_transformados <- dados_transformados %>%
+  mutate(Vigorosa = VigorosaMin + StrongMin)
+```
+
+### Manter só os valores em minutos no dataframe
+
+```{r}
+dados_analise <- dados_transformados %>%
+  select(-Sleep, -Sedentary, -Ligth, -Moderate, -Vigorous, -Strong, -VigorosaMin, -StrongMin)
+```
+
+### Convertendo a coluna de data para o formato de data
+
+```{r}
+dados_analise$Date <- dmy(dados_analise$Date)
+```
+
+### Agrupar e organizar os dados com base no ID nos sujeitos e na data de coleta dos
+
+```{r}
+dados_ordenados <- dados_analise %>%
+  arrange(IDPerfil, Date)
+```
+
+Agora precisamos agrupar os indivíduos com base na data com que eles foram monitorados, para podermos indicar a data de início e término do período de monitoramento deles e computarmos as quantidades semanais, posteriormente salvando o banco de dados para pdoermos analisar estes dados posteriormente
+
+#### Agrupar indivíduos que foram monitorados entre 24/04 e 28/05 (684, 685 e 687)
+
+```{r eval = FALSE, include = TRUE}
+# Indicar os IDs dos indivíduos monitorados neste período
+individuos_24a29 <- c(684, 685, 687)
+
+
+# Criar um banco de dados somente com estes indivíduos
+banco_24a29 <- dados_ordenados %>% filter(IDPerfil %in% individuos_24a29)
+
+
+# Definindo as datas de início e término do monitoramento (de 24/04 a 28/05)
+data_limite_inicial24a29 <- as.Date("2023-04-24")
+data_limite_final24a29 <- as.Date("2023-05-28")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_24a29 <- banco_24a29 %>%
+  filter(between(Date, data_limite_inicial24a29, data_limite_final24a29))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_24a29$Date))
+banco_24a29 <- banco_24a29 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_24a29 <- banco_24a29 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+
+```
+
+```{r eval=FALSE, include=TRUE}
+# Salvar o banco de dados destes sujeitos
+write_xlsx(banco_24a29, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_24a29.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 01/05 e 04/06 (693, 694, 689, 692, 697, 691, 701, 702, 686, 699, 703, 705, 706)
+
+```{r eval = FALSE, include = TRUE}
+individuos_01a04 <- c(693, 694, 689, 692, 697, 691, 701, 702, 686, 699, 703, 704, 705, 706)
+
+
+banco_01a04 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_01a04)
+
+
+# Definindo as datas de limite (de 01/05 a 04/06)
+data_limite_inicial01a04 <- as.Date("2023-05-01")
+data_limite_final01a04 <- as.Date("2023-06-04")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_01a04 <- banco_01a04 %>%
+  filter(between(Date, data_limite_inicial01a04, data_limite_final01a04))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_01a04$Date))
+banco_01a04$semana <- banco_01a04 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+```
+
+```{r eval = FALSE, include = TRUE}
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_01a04 <- banco_01a04 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval=FALSE, include=TRUE}
+write_xlsx(banco_01a04, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_01a04.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 08/05 e 11/06 (707, 709, 710, 688, 690, 696, 700, 708, 695, 698, 711, 712)
+
+```{r eval = FALSE, include = TRUE}
+individuos_08a11 <- c(707, 709, 710, 688, 690, 700, 695, 698, 711, 712)
+
+banco_08a11 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_08a11)
+
+
+# Definindo as datas de limite (de 08/05 a 11/06)
+data_limite_inicial08a11 <- as.Date("2023-05-08")
+data_limite_final08a11 <- as.Date("2023-06-11")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_08a11 <- banco_08a11 %>%
+  filter(between(Date, data_limite_inicial08a11, data_limite_final08a11))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_08a11$Date))
+banco_08a11 <- banco_08a11 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_08a11 <- banco_08a11 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval=FALSE, include=TRUE}
+write_xlsx(banco_08a11, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_08a11.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 08/05 e 11/06 e tiveram uma semana a mais de monitoramento (696, 708)
+
+```{r eval = FALSE, include = TRUE}
+individuos_08a11_extendido <- c(696, 708)
+
+banco_08a11_extendido <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_08a11_extendido)
+
+
+# Definindo as datas de limite (de 08/05 a 18/06)
+data_limite_inicial08a11_extendido <- as.Date("2023-05-08")
+data_limite_final08a11_extendido <- as.Date("2023-06-18")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_08a11_extendido <- banco_08a11_extendido %>%
+  filter(between(Date, data_limite_inicial08a11_extendido, data_limite_final08a11_extendido))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_08a11_extendido$Date))
+banco_08a11_extendido <- banco_08a11_extendido %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_08a11_extendido <- banco_08a11_extendido %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval=FALSE, include = TRUE}
+write_xlsx(banco_08a11_extendido, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_08a11_extendido.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 15/05 e 18/06 (713, 714)
+
+```{r eval = FALSE, include = TRUE}
+individuos_15a18 <- c(713, 714)
+
+banco_15a18 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_15a18)
+
+
+# Definindo as datas de limite (de 15/05 a 18/06)
+data_limite_inicial15a18 <- as.Date("2023-05-15")
+data_limite_final15a18 <- as.Date("2023-06-18")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_15a18 <- banco_15a18 %>%
+  filter(between(Date, data_limite_inicial15a18, data_limite_final15a18))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_15a18$Date))
+banco_15a18 <- banco_15a18 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+#Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_15a18 <- banco_15a18 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval= FALSE, include = TRUE}
+write_xlsx(banco_15a18, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_15a18.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 24/07 e 27/08 (715, 716, 717, 718)
+
+```{r eval = FALSE, include = TRUE}
+individuos_24a27 <- c(715, 716, 717, 718)
+
+
+banco_24a27 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_24a27)
+
+
+# Definindo as datas de limite (de 24/07 a 27/08)
+data_limite_inicial24a27 <- as.Date("2023-07-24")
+data_limite_final24a27 <- as.Date("2023-08-27")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_24a27 <- banco_24a27 %>%
+  filter(between(Date, data_limite_inicial24a27, data_limite_final24a27))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_24a27$Date))
+banco_24a27 <- banco_24a27 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+#Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_24a27 <- banco_24a27 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_24a27, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_24a27.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 31/07 e 03/09 (719, 721, 722, 723, 724, 727)
+
+```{r eval = FALSE, include = TRUE}
+individuos_31a03 <- c(719, 721, 722, 723, 724, 725, 727)
+
+banco_31a03 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_31a03)
+
+
+# Definindo as datas de limite (de 31/07 a 03/09)
+data_limite_inicial31a03 <- as.Date("2023-07-31")
+data_limite_final31a03 <- as.Date("2023-09-03")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_31a03 <- banco_31a03 %>%
+  filter(between(Date, data_limite_inicial31a03, data_limite_final31a03))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_31a03$Date))
+banco_31a03 <- banco_31a03 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_31a03 <- banco_31a03 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_31a03, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_31a03.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 07/08 e 10/09 (720, 728, 729, 730, 731, 732, 733, 734, 735, 736, 738)
+
+```{r eval = FALSE, include = TRUE}
+individuos_07a10 <- c(720, 728, 729, 730, 731, 732, 733, 734, 735, 736, 738)
+
+banco_07a10 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_07a10)
+
+
+# Definindo as datas de limite (de 07/08 a 10/09)
+data_limite_inicial07a10 <- as.Date("2023-08-07")
+data_limite_final07a10 <- as.Date("2023-09-10")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_07a10 <- banco_07a10 %>%
+  filter(between(Date, data_limite_inicial07a10, data_limite_final07a10))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_07a10$Date))
+banco_07a10 <- banco_07a10 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_07a10 <- banco_07a10 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_07a10, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_07a10.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 14/08 e 17/09 (726, 740, 741, 742, 743)
+
+```{r eval = FALSE, include = TRUE}
+individuos_14a17 <- c(726, 740, 741, 742, 743)
+
+banco_14a17 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_14a17)
+
+
+# Definindo as datas de limite (de 14/08 a 17/09)
+data_limite_inicial14a17 <- as.Date("2023-08-14")
+data_limite_final14a17 <- as.Date("2023-09-17")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_14a17 <- banco_14a17 %>%
+  filter(between(Date, data_limite_inicial14a17, data_limite_final14a17))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_14a17$Date))
+banco_14a17 <- banco_14a17 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_14a17 <- banco_14a17 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_14a17, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_14a17.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 21/08 e 24/09 (744, 746, 747, 748)
+
+```{r eval = FALSE, include = TRUE}
+individuos_21a24 <- c(744, 746, 747, 748)
+
+banco_21a24 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_21a24)
+
+
+# Definindo as datas de limite (de 21/08 a 24/09)
+data_limite_inicial21a24 <- as.Date("2023-08-21")
+data_limite_final21a24 <- as.Date("2023-09-24")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_21a24 <- banco_21a24 %>%
+  filter(between(Date, data_limite_inicial21a24, data_limite_final21a24))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_21a24$Date))
+banco_21a24 <- banco_21a24 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_21a24 <- banco_21a24 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_21a24, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_21a24.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 28/08 e 01/10 (737, 745, 749, 750, 751, 752)
+
+```{r eval = FALSE, include = TRUE}
+individuos_28a01 <- c(737, 745, 749, 750, 751, 752)
+
+banco_28a01 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_28a01)
+
+
+# Definindo as datas de limite (de 28/08 a 01/10)
+data_limite_inicial28a01 <- as.Date("2023-08-28")
+data_limite_final28a01 <- as.Date("2023-10-01")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_28a01 <- banco_28a01 %>%
+  filter(between(Date, data_limite_inicial28a01, data_limite_final28a01))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_28a01$Date))
+banco_28a01 <- banco_28a01 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_28a01 <- banco_28a01 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_28a01, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_28a01.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 04/09 e 08/10 (753, 754, 755)
+
+```{r eval = FALSE, include = TRUE}
+individuos_04a08 <- c(753, 754, 755)
+
+banco_04a08 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_04a08)
+
+
+# Definindo as datas de limite (de 04/09 a 08/10)
+data_limite_inicial04a08 <- as.Date("2023-09-04")
+data_limite_final04a08 <- as.Date("2023-10-08")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_04a08 <- banco_04a08 %>%
+  filter(between(Date, data_limite_inicial04a08, data_limite_final04a08))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_04a08$Date))
+banco_04a08 <- banco_04a08 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_04a08 <- banco_04a08 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_04a08, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_04a08.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 18/09 e 22/10
+
+```{r eval = FALSE, include = TRUE}
+individuos_18a22 <- c(756, 757, 758)
+
+banco_18a22 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_18a22)
+
+
+# Definindo as datas de limite (de 18/09 a 22/10)
+data_limite_inicial18a22 <- as.Date("2023-09-18")
+data_limite_final18a22 <- as.Date("2023-10-22")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_18a22 <- banco_18a22 %>%
+  filter(between(Date, data_limite_inicial18a22, data_limite_final18a22))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_18a22$Date))
+banco_18a22 <- banco_18a22 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_18a22 <- banco_18a22 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_18a22, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_18a22.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 06/11 e 10/12 (759, 760, 761)
+
+```{r eval = FALSE, include = TRUE}
+individuos_06a10 <- c(759, 760, 761)
+
+banco_06a10 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_06a10)
+
+
+# Definindo as datas de limite (de 06/11 a 10/12)
+data_limite_inicial06a10 <- as.Date("2023-11-06")
+data_limite_final06a10 <- as.Date("2023-12-10")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_06a10 <- banco_06a10 %>%
+  filter(between(Date, data_limite_inicial06a10, data_limite_final06a10))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_06a10$Date))
+banco_06a10 <- banco_06a10 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_06a10 <- banco_06a10 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_06a10, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_06a10.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 20/11 e 24/12 (762)
+
+```{r eval = FALSE, include = TRUE}
+individuos_20a24 <- c(762)
+
+banco_20a24 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_20a24)
+
+
+# Definindo as datas de limite (de 20/11 a 24/12)
+data_limite_inicial20a24 <- as.Date("2023-11-20")
+data_limite_final20a24 <- as.Date("2023-12-24")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_20a24 <- banco_20a24 %>%
+  filter(between(Date, data_limite_inicial20a24, data_limite_final20a24))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_20a24$Date))
+banco_20a24 <- banco_20a24 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_20a24 <- banco_20a24 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_20a24, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_20a24.xlsx")
+```
+
+#### Agrupar indivíduos que foram monitorados entre 27/11 e 31/12 (763)
+
+```{r eval = FALSE, include = TRUE}
+individuos_27a31 <- c(763)
+
+banco_27a31 <- dados_ordenados %>% 
+  filter(IDPerfil %in% individuos_27a31)
+
+
+# Definindo as datas de limite (de 27/11 a 31/12)
+data_limite_inicial27a31 <- as.Date("2023-11-27")
+data_limite_final27a31 <- as.Date("2023-12-31")
+
+
+# Excluindo linhas com datas fora do intervalo
+banco_27a31 <- banco_27a31 %>%
+  filter(between(Date, data_limite_inicial27a31, data_limite_final27a31))
+
+
+# Criando uma variável para indicar cada uma das semanas
+min_semana <- min(isoweek(banco_27a31$Date))
+banco_27a31 <- banco_27a31 %>%
+  mutate(semana = isoweek(Date) - min_semana + 1)
+
+
+# Calculando a quantidade de minutos de AF em cada intensidade, para cada indivíduo em cada semana
+banco_27a31 <- banco_27a31 %>%
+  group_by(IDPerfil, semana) %>%
+  summarise(
+    Leve = sum(LeveMin),
+    Moderada = sum(ModeradaMin),
+    VigorosaS = sum(Vigorosa)
+  ) %>%
+  pivot_wider(names_from = semana, values_from = c(Leve, Moderada, VigorosaS))
+```
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_27a31, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/Dados de períodos diferentes/dados_27a31.xlsx")
+```
+
+Agora vamos concatenar todos os bancos de dados, gerando assim um único banco de dados com todos os sujeitos
+
+### Concatenar bancos de dados
+
+```{r eval = FALSE, include = TRUE}
+banco_concatenado <- rbind(banco_24a29, banco_01a04, banco_08a11, banco_08a11_extendido, banco_15a18, banco_24a27, banco_31a03, banco_07a10, banco_14a17, banco_21a24, banco_28a01, banco_04a08, banco_18a22, banco_06a10, banco_20a24, banco_27a31)
+```
+
+Agora vamos atribuir IDs aos sujeitos que correspondam aos IDs que utilizamos no banco de dados do IPAQ, para podermos concatenar os dois bancos de dados para análise
+
+### Atribuir IDs
+
+```{r eval = FALSE, include = TRUE}
+banco_concatenado <- banco_concatenado %>%
+  mutate(ID = case_when(
+    IDPerfil == "684" ~ 1,
+    IDPerfil == "685" ~ 2,
+    IDPerfil == "687" ~ 4,
+    IDPerfil == "686" ~ 3,
+    IDPerfil == "689" ~ 6,
+    IDPerfil == "691" ~ 8,
+    IDPerfil == "692" ~ 9,
+    IDPerfil == "693" ~ 10,
+    IDPerfil == "697" ~ 14,
+    IDPerfil == "699" ~ 16,
+    IDPerfil == "702" ~ 19,
+    IDPerfil == "703" ~ 20,
+    IDPerfil == "705" ~ 22,
+    IDPerfil == "706" ~ 23,
+    IDPerfil == "688" ~ 5,
+    IDPerfil == "690" ~ 7,
+    IDPerfil == "695" ~ 12,
+    IDPerfil == "700" ~ 17,
+    IDPerfil == "707" ~ 24,
+    IDPerfil == "709" ~ 26,
+    IDPerfil == "710" ~ 27,
+    IDPerfil == "711" ~ 28,
+    IDPerfil == "712" ~ 29,
+    IDPerfil == "696" ~ 13,
+    IDPerfil == "708" ~ 25,
+    IDPerfil == "713" ~ 30,
+    IDPerfil == "714" ~ 31,
+    IDPerfil == "715" ~ 32,
+    IDPerfil == "716" ~ 33,
+    IDPerfil == "719" ~ 36,
+    IDPerfil == "723" ~ 40,
+    IDPerfil == "725" ~ 42,
+    IDPerfil == "727" ~ 44,
+    IDPerfil == "720" ~ 37,
+    IDPerfil == "728" ~ 45,
+    IDPerfil == "729" ~ 46,
+    IDPerfil == "730" ~ 47,
+    IDPerfil == "733" ~ 50,
+    IDPerfil == "734" ~ 51,
+    IDPerfil == "738" ~ 55,
+    IDPerfil == "726" ~ 43,
+    IDPerfil == "740" ~ 57,
+    IDPerfil == "741" ~ 58,
+    IDPerfil == "743" ~ 60,
+    IDPerfil == "744" ~ 61,
+    IDPerfil == "747" ~ 64,
+    IDPerfil == "748" ~ 65,
+    IDPerfil == "737" ~ 54,
+    IDPerfil == "745" ~ 62,
+    IDPerfil == "749" ~ 66,
+    IDPerfil == "750" ~ 67,
+    IDPerfil == "751" ~ 68,
+    IDPerfil == "752" ~ 69,
+    IDPerfil == "753" ~ 70,
+    IDPerfil == "754" ~ 71,
+    IDPerfil == "755" ~ 72,
+    IDPerfil == "756" ~ 73,
+    IDPerfil == "757" ~ 74,
+    IDPerfil == "758" ~ 75,
+    IDPerfil == "759" ~ 76,
+    IDPerfil == "760" ~ 77,
+    IDPerfil == "761" ~ 78,
+    IDPerfil == "762" ~ 79,
+    IDPerfil == "763" ~ 80,
+    
+    TRUE ~ NA_real_  # Caso padrão, caso IDPERFIL não corresponda a nenhum caso
+  ))
+```
+
+Agora vamos salvar este banco de dados
+
+### Salvar banco de dados
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(banco_concatenado, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/resultado_af_processado.xlsx")
+```
+
+#### Agora vamos visualizar como os dados ficaram após este processamento
+
+```{r include=FALSE}
+dados_pos_3_processamento <- read_excel('D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/resultado_af_processado.xlsx')
+```
+
+```{r}
+dados_pos_3_processamento
+```
+
+\
+\
+
+# Etapa 5 (quarto processamento)
+
+Nessa etapa, os dados processados do IPAQ e do FLEEM foram concatenados em um único bando de dados, se baseando no ID dos sujeitos. Os dados de caracterização da amostra também foram concatenados nesta etapa
+
+### Carregar pacotes
+
+```{r message=FALSE, warning=FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(tidyr)
+library(writexl)
+```
+
+### Vamos carregar os dados do IPAQ e do FLEEM que foram processados nas etapas anteriores
+
+```{r}
+dados_ipaq <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Primeiro processamento/IPAQ/dados_semanas.xlsx")
+
+dados_fleem <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Terceiro Processamento/FLEEM/resultado_af_processado.xlsx")
+```
+
+### Vamos também carregar os dados com o screening dos participantes, para termos as variáveis que permitam caracterizá-los
+
+```{r}
+dados_caracterizacao <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sem nenhum processamento/IPAQ/Respostas extraidas do google forms/Screening (respostas)_modificado.xlsx")
+```
+
+### Vamos remover os dados de autoeficácia
+
+```{r}
+dados_caracterizacao <- select(dados_caracterizacao, -c(Nome, 9:14))
+```
+
+### Agora vamos concatenar os bancos de dados, se baseando no ID dos sujeitos
+
+```{r}
+dados_concatenados <- dados_fleem %>%
+  left_join(dados_ipaq, by = ('ID')) 
+
+
+dados_concatenados <- dados_concatenados %>%
+  left_join(dados_caracterizacao, by = ('ID'))
+```
+
+### Vamos visualizar como os nossos dados ficaram após essa etapa
+
+```{r}
+dados_concatenados
+```
+
+### Agora vamos salvar o banco de dados, para podermos primeiro modificar o nome das colunas dos dados do IPAQ para indicar cada uma das semanas, e posteriormente prosseguir com a análise dos dados
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(dados_concatenados, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quarto processamento/dados_concatenados.xlsx")
+```
+
+\
+\
+
+# Etapa 6 (quinto processamento)
+
+Nesta etapa, antes de proceder com a análise exploratória dos dados, foi necessário fazer uma transposição nos dados, para que a distribuição das variáveis pudessem ser testadas.
+
+Temos muitas variáveis e fazer isso com um script no R daria bastante trabalho. Felizmente temos um pacote no software Jamovi que faz isso para nós xD
+
+Após verificar a distribuição dos dados e o ajuste de modelos do IPAQ, retomei essa etapa para verificar indivíduos que poderiam ser considerados outliers e removê-los
+
+## Função para remover outliers do banco de dados
+
+### Carregar os pacotes
+
+```{r warning=FALSE, message = FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(tidyr)
+library(writexl)
+library(kableExtra)
+library(knitr)
+```
+
+### Vamos carregar o banco de dados para remover os outliers
+
+```{r}
+dados <- read.csv("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado_identificando_outliers.csv")
+```
+
+### Vamos manter no banco de dados somente aqueles que não são considerados outliers
+
+```{r}
+dados <- dados[dados$Outlier == 0, ]
+```
+
+### Vamos verificar com esses dados ficaram
+
+```{r}
+dados
+```
+
+### Agora vamos salvar esse banco de dados para analisá-lo
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(dados,"D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado_sem_outliers.xlsx")
+```
+
+Após isso, tendo em vista que utilizarei uma biblioteca para testar diferentes distribuições de probabilidade, criei um script em R para somar uma constante (10) às VDs que possuem valores 0, tendo em vista que algumas distribuições de probabilidade não se adequam à estes valores.
+
+## Função para somar uma constante (10) às variáveis dependentes
+
+### Carregar pacotes
+
+```{r message=FALSE, warning=FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(tidyr)
+library(writexl)
+```
+
+### Vamos carregar o banco de dados para somarmos constantes às variáveis
+
+```{r}
+dados_transpostos <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado_sem_outliers.xlsx")
+```
+
+### Primeiro, vamos verificar se existem valores 0 (zero) no nosso banco de dados
+
+```{r}
+dados_transpostos %>%
+  summary()
+```
+
+### A partir disso, vemos que somente a variável "Leve_FLEEM" não possui valores 0. Portanto, somaremos uma constante (10) em todas as demais variáveis
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados_transpostos$Moderada_FLEEM_10 <- dados_transpostos$Moderada_FLEEM + 10
+dados_transpostos$Vigorosa_FLEEM_10 <- dados_transpostos$Vigorosa_FLEEM + 10
+dados_transpostos$Caminhada_IPAQ_10 <- dados_transpostos$Caminhada_IPAQ + 10
+dados_transpostos$Moderada_IPAQ_10 <- dados_transpostos$Moderada_IPAQ + 10
+dados_transpostos$Vigorosa_IPAQ_10 <- dados_transpostos$Vigorosa_IPAQ + 10
+```
+
+### Vamos remover as variáveis antigas para não ficarmos com muitas variáveis no banco de dados que nos confudam
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados_transpostos <- dados_transpostos %>% 
+  select(- c(Moderada_FLEEM, Vigorosa_FLEEM, Caminhada_IPAQ, Moderada_IPAQ, Vigorosa_IPAQ))
+```
+
+### Agora vamos verificar se somar a constante resultou no que queríamos: remover os valores 0
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+dados_transpostos %>%
+  summary()
+```
+
+### Agora vamos salvar o nosso banco de dados para usarmos nas análises subsequentes, começando pela análise da distribuição das VDs
+
+```{r eval = FALSE, include = TRUE}
+write_xlsx(dados_transpostos, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado_sem_outliers.xlsx")
+```
+
+\
+\
+
+# Etapa 7 (sexto processamento)
+
+Mesmo após os dados do IPAQ serem processados para verificar a existência de outliers (de acordo com o processamento recomendado), ainda observou-se dados que se diferiam da maioria. Portanto, foi realizada uma nova análise de possíveis outliers, utilizando-se assim da análise dos dados transformados em z-score, para observar os que se distanciavam consideravelmente da média do conjunto de dados
+
+Vamos verificar a existência de possíveis outliers para os dados do IPAQ, utilizando-se assim do cálculo de escores z
+
+### Carregar pacotes
+
+```{r message=FALSE, warning=FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(tidyr)
+library(writexl)
+```
+
+### Vamos carregar o banco de dados para verificar possíveis outliers
+
+```{r}
+dados <- read_excel("D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Quinto processamento/banco_dados_reestruturado_sem_outliers.xlsx")
+```
+
+### Vamos verificar se existem valores omissos no banco de dados
+
+```{r}
+sapply(dados, function(x) sum(is.na(x)))
+```
+
+### Vamos remover esses dados omissos para não atrapalhar no computo do z-score
+
+```{r}
+dados <- na.omit(dados)
+```
+
+### Vamos calcular o z-score das variáveis de caminhada e atividade física de intensidade moderada e vigorosa do IPAQ
+
+```{r}
+dados$z_score_caminhada <- (dados$Caminhada_IPAQ_10-mean(dados$Caminhada_IPAQ_10))/sd(dados$Caminhada_IPAQ_10)
+dados$z_score_moderada <- (dados$Moderada_IPAQ_10-mean(dados$Moderada_IPAQ_10))/sd(dados$Moderada_IPAQ_10)
+dados$z_score_vigorosa <- (dados$Vigorosa_IPAQ_10-mean(dados$Vigorosa_IPAQ_10))/sd(dados$Vigorosa_IPAQ_10)
+```
+
+Vamos considerar que valores que estão 3 desvios padrão acima ou abaixo da média são outliers, e removê-los
+
+### Vamos salvar cada coluna do ipaq em uma variável nova
+
+```{r}
+caminhada_sem_outlier <- dados[dados$z_score_caminhada < 3, c(1, 8, 13)]
+moderada_sem_outlier <- dados[dados$z_score_moderada < 3, c(1, 8, 14)]
+vigorosa_sem_outlier <- dados[dados$z_score_vigorosa < 3, c(1, 8, 15)]
+```
+
+### Vamos agora criar um banco de dados somente com os dados do IPAQ após a remoção dos outliers
+
+```{r}
+dados_sem_outliers <- vigorosa_sem_outlier %>%
+  left_join(moderada_sem_outlier, by = c('ID', 'Semana')) 
+
+dados_sem_outliers <- dados_sem_outliers %>%
+  left_join(caminhada_sem_outlier, by = c('ID', 'Semana')) 
+```
+
+### Vamos visualizar como os dados ficaram após essa etapa
+
+```{r}
+
+dados_sem_outliers
+
+```
+
+### Agora vamos salvar esse banco de dados para analisá-lo
+
+```{r eval=FALSE, include=TRUE}
+write_xlsx(dados_sem_outliers, "D:/Projeto_mestrado/Dissertacao/MastersDissertation/Dados/Sexto processamento/banco_dados_reestruturado_sem_outliers.xlsx")
+```

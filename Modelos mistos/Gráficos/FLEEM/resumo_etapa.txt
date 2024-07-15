@@ -1,0 +1,1 @@
+Nesta etapa, os gráficos contendo o comportamento das VDs ao longo do tempo (por esperança e IC) e o comportamento de cada sujeito foram criados. 

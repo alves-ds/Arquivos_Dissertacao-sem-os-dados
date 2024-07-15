@@ -1,0 +1,7 @@
+Nessa etapa inicial, tanto os dados extraídos do banco de dados do FLEEM quanto os dados extraídos do Google forms precisaram ser pré-processados para se certificar de que fossem alterados para um formato homogêneo para as análises subsequentes.
+
+FLEEM - O domínio do FLEEM System precisou ser adquirido novamente por ter expirado ao longo da coleta de dados, portanto os outputs iniciais eram em formato .xlsx e com uma maior quantidade de colunas do que o output obtido após a reaquisição do domínio (em formato .csv). Portanto, nessa etapa foi necessário o desenvolvimento de um script que tornasse os dados antigos comparáveis aos novos. 
+Além disso, os dados obtidos pelo banco de dados do FLEEM são ordenados temporalmente, entretanto não são separados por dia de monitoramento. Portanto, foi necessário incluir nesse script a função de separar os dados por dia de monitoramento para que posteriormente esses dados fossem analisados.
+
+
+IPAQ - Devido aos dados serem extraídos do Google forms, é necessário uma etapa de limpeza inicial dos dados para reduzir o tamanho dos rótulos das colunas, assim como, para orgnizar os dados e concatenar os dados das 5 semanas. Adicionalmente, foram quantificados os tempos de atividade física semanal em cada intensidade e cada domínio. 
